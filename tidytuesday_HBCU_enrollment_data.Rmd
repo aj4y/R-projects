@@ -1,0 +1,185 @@
+---
+title: "tidytuesday_02_02_2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+library(janitor)
+library(glue)
+```
+
+
+```{r}
+
+tt <- tidytuesdayR::tt_load('2021-02-02')
+
+
+hbcU_all <- tt$hbcu_all %>% 
+  clean_names()
+
+hbcU_all %>% 
+  select(year,males,females)%>%
+  gather(gender, total_population,-year)%>%
+  ggplot(aes(year,total_population,  fill = gender)) + geom_col()+coord_flip() +
+  labs( x = 'Year',
+        y = 'Total population',
+        fill = 'Gender',
+        title = "Gender wise break up of population over the years ")
+  
+hbcU_all %>% 
+  select(year,males,females)%>%
+  mutate(gender_ratio = males /females) %>% 
+  ggplot(aes(year, gender_ratio))+geom_line()+
+  geom_point(aes(size = males + females))+
+  labs( x = 'Year',
+        y = ' Ratio of Males / Females', 
+        size = ' Total Population',
+        title = "Male to Female ration over the years")
+
+hbcU_all %>% 
+  select(year, total_private,total_public)%>%
+  gather(pub_priv, total_population,-year)%>%
+  ggplot(aes(year, total_population, fill = pub_priv)) + geom_col()+coord_flip()+
+  labs(x = 'Year',
+       y = "Total Population",
+       fill = "Type Public / Private",
+       title = "Public - Private break up of population over the years ")
+
+hbcU_all %>% 
+  select(year, total_private,total_public)%>%
+  mutate(ratio = total_private / total_public) %>% 
+  ggplot(aes(year, ratio))+geom_line()+
+  geom_point(aes(size = total_private+total_public))+
+  labs( x = 'Year',
+        y = ' Ratio of Private / Public', 
+        size = ' Total Population',
+        title = "Trend of Private / Public ratio over the years")
+
+# Historically no of Females enrolling into HBCUs have been higher than Males, this ratio has declined towards 0.65 in the later years, meaning more Females are enrolled than Males in the recent years
+# The number of private universities have been lower than public universities for HBCUs
+
+
+```
+
+ 
+
+
+```{r}
+
+hbcu_black <- tt$hbcu_black %>% 
+  clean_names()
+
+hbcu_black %>% 
+  select(year,males,females)%>%
+  gather(gender, total_population,-year)%>%
+  ggplot(aes(year,total_population,  fill = gender)) + geom_col()+coord_flip() +
+  labs( x = 'Year',
+        y = 'Total population',
+        fill = 'Gender',
+        title = "Gender wise break up of population over the years ")
+  
+hbcu_black %>% 
+  select(year,males,females)%>%
+  mutate(gender_ratio = males /females) %>% 
+  ggplot(aes(year, gender_ratio))+geom_line()+
+  geom_point(aes(size = males + females))+
+  labs( x = 'Year',
+        y = ' Ratio of Males / Females', 
+        size = ' Total Population',
+        title = "Male to Female ratio over the years")
+
+hbcu_black %>% 
+  select(year, total_private,total_public)%>%
+  gather(pub_priv, total_population,-year)%>%
+  ggplot(aes(year, total_population, fill = pub_priv)) + geom_col()+coord_flip()+
+  labs(x = 'Year',
+       y = "Total Population",
+       fill = "Type Public / Private",
+       title = "Public - Private break up of population over the years ")
+
+hbcu_black %>% 
+  select(year, total_private,total_public)%>%
+  mutate(ratio = total_private / total_public) %>% 
+  ggplot(aes(year, ratio))+geom_line()+
+  geom_point(aes(size = total_private+total_public))+
+  labs( x = 'Year',
+        y = ' Ratio of Private / Public', 
+        size = ' Total Population',
+        title = "Trend of Private / Public ratio over the years")
+
+# The number of black Females enrolled into the HBCUs have been higher than Males and is increasing. This coule be because of more black Males getting into non HBCUs for education which is a great sign 
+
+```
+
+
+
+```{r}
+
+bach_students <- 
+  tt$bach_students %>% 
+  clean_names()
+
+bach_students%>%
+  rename(year = total)%>%
+  left_join(.,hbcU_all %>% select(year, total_enrollment), by = c('year'='year'))%>%
+  filter(!is.na(total_enrollment))%>%
+  mutate(total_percent_of_all_persons_age_25_and_over = glue("{total_percent_of_all_persons_age_25_and_over} {'%'}"))%>%
+  ggplot(aes(x = year, y=total_percent_of_all_persons_age_25_and_over)) +
+  geom_line()+
+  geom_point(aes(size = total_enrollment))+
+  labs( x= "Year",
+        y= " % of Population",
+        title = 'Trend of % population over 25 and above who have passed HS',
+        size = "Total Population")
+
+hbcu_by_race <- 
+  left_join(hbcU_all %>% select(year, total_enrollment) %>% rename(total = total_enrollment),
+            hbcu_black %>% select(year, total_enrollment)%>%rename(total_black = total_enrollment),
+            by = c('year'='year')) 
+
+hbcu_by_race %>% 
+  mutate(total_white = total - total_black)%>%
+  select(-total)%>%
+  gather(.,race,population,-year)%>%
+  ggplot(aes(year,population,fill =race))+geom_col()+
+  labs(x = "Year",
+       y = 'Total population',
+       title = "Break-up of population race wise over the year",
+       fill = "Race")
+
+bach_students %>%
+  rename(year = total)%>%
+  left_join(.,hbcU_all%>%select(year, total_enrollment),by=c('year'='year'))%>%
+  select(year,white1,black1,hispanic,asian_pacific_islander_asian,asian_pacific_islander_pacific_islander,american_indian_alaska_native,two_or_more_race,total_enrollment)%>%
+  gather(.,race, percent_total,-year,-total_enrollment)%>%
+  group_by(year)%>%
+  mutate(total = sum(total_enrollment), total=replace_na(total,0),
+        percent_total = str_replace(percent_total,"—","0"),
+        percent_total= as.numeric(percent_total))%>%
+  ungroup()%>%
+  mutate(race = fct_reorder(race,total_enrollment))%>%
+  ggplot(aes(year, percent_total))+geom_line()+facet_wrap(~race)+
+  labs(x = "Year",
+       y = "Percentage of population",
+       title = "% of population over age of 25 who have passed HS over the years",
+       subtitle = "Faceted by race")
+
+
+
+```
+
