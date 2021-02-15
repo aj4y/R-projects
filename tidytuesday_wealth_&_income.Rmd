@@ -1,0 +1,218 @@
+---
+title: "tidytuesday_wealth_&_income"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidytuesdayR)
+library(tidyverse)
+
+
+```
+
+
+```{r}
+tt <- tidytuesdayR::tt_load('2021-02-09')
+
+tt
+
+lifetime_earn <- tt$lifetime_earn
+
+lifetime_earn %>% 
+  ggplot(aes(race,lifetime_earn,fill=gender))+
+  geom_col()+
+  labs(x= "Race",
+       y = "Average lifetime earnigns",
+       fill = "Gender",
+       title = "Average lifetime earnings of various Races")
+
+lifetime_earn %>% 
+  group_by(race)%>%
+  mutate (pct = lifetime_earn/sum(lifetime_earn))%>%
+  ggplot(aes(race,pct,color = gender))+geom_point(aes(size = lifetime_earn))+
+  scale_y_continuous(labels = scales::percent)+
+  labs(x = "Race",
+       y = "Percentatge of Lifetime earnings",
+       color = "Gender",
+       size = "Total lifetime earnings",
+       title = "Percentage break-up of Men-Women earnings by Race")
+
+# Whites have higher average lifetime earnings and Men always had higher earnings compared to Women in all the races, but the gap is lower in Blacks than other two 
+
+
+```
+
+```{r}
+tt$
+
+lifetime_wealth <-tt$lifetime_wealth
+
+lifetime_wealth %>% 
+  ggplot(aes(year,wealth_lifetime, color = type))+geom_line()+facet_wrap(~race)+
+  labs (x = "Year",
+        y="Lifetime wealth",
+        color= "Measure of central tendency ",
+        title = "Average and Median Lifetime wealth across years by Race")
+
+# The Average of Whites increases rapidly as compared to median in the later years, indicating small percentage of population accumulating large amount of wealth , which is not the case in blacks 
+
+```
+
+
+```{r}
+tt$race_wealth
+
+race_wealth <- tt$race_wealth
+
+race_wealth %>% 
+  ggplot(aes(year,wealth_family, color = type))+geom_line()+facet_wrap(~race)+
+  labs (x = "Year",
+        y= "Family wealth",
+        color= "Measure of central tendency ",
+        title = "Average and Median Family wealth across years by Race")
+
+# Seems like Blacks & Hispanics were considered as Non-White till 1980s 
+# Higher average than Median indicates skewed distribution of wealth towards small number of families 
+
+
+```
+
+
+
+```{r}
+tt$retirement
+
+retirement <- tt$retirement
+
+retirement %>% 
+  ggplot(aes(year,retirement,color=race))+geom_line()+
+  labs(x = "Year",
+       y="Retirement wealth",
+       color="Race",
+       title = "Trend of retirement wealth over the years for Blacks, Hispanics and Whites")
+
+#Retirement wealth has increased for Whites while it has remained flat for Blacks & Hispanics
+
+
+```
+
+
+
+```{r}
+tt$home_owner
+
+home_owner <- tt$home_owner
+
+home_owner%>%
+  ggplot(aes(year,home_owner_pct,color=race))+geom_line()+
+  scale_y_continuous(labels = scales::percent)+
+  labs(x = "Year",
+       y="Home ownership percentage",
+       color="Race",
+       title = "Trend of Home owership over the years for Blacks, Hispanics and Whites")
+  
+#Home ownership percentage has remained similar across years
+
+
+```
+
+
+
+```{r}
+tt$student_debt
+
+student_debt <- tt$student_debt
+
+student_debt%>%
+  ggplot(aes(year,loan_debt_pct,color=race))+geom_line()+
+  geom_point(aes(size = loan_debt))+
+  scale_y_continuous(labels = scales :: percent)+
+  labs (x = "Year",
+        y = "Percentage of families with student loan",
+        color="Race",
+        size = "Average loan value",
+        title = "Trend of student loan debt over the years by race")
+
+# Both percentage of families with student loans and the amount of student loans have increased over the last two decades for all races and considerably more for Blacks
+
+
+```
+
+
+
+```{r}
+tt$income_aggregate
+
+
+income_agg <- tt$income_aggregate
+
+income_agg$income_quintile <- factor(income_agg$income_quintile,levels = c("Lowest","Second","Third","Fourth","Highest","Top 5%"), labels = c("Lowest","Second","Third","Fourth","Highest","Top 5%"))
+
+income_agg %>% 
+  filter(race !='All Races')%>% 
+  ggplot(aes(year,income_share,color=income_quintile))+
+  geom_line()+
+  facet_wrap(~race)+
+  labs (x = "Year",
+        y = "Income share",
+        color="Quintile",
+        title = "Trend of income quintiles by Race")
+
+
+
+```
+
+
+```{r}
+tt$income_time
+
+income_time <- tt$income_time
+
+income_time %>% 
+  ggplot(aes(year,income_family, color=percentile))+
+  geom_line()+
+  labs (x = "Year",
+        y = "Average family income",
+        color="Percentile",
+        title = "Trend of familiy income over the year")
+
+# Average income of 90th percentile families have increased over the years, whereas others are constant, indicated wealth accumulation with certain families 
+
+
+```
+
+
+```{r}
+tt$income_distribution
+
+income_distribution<- tt$income_distribution
+
+
+income_distribution$income_bracket = factor(income_distribution$income_bracket, 
+                                      levels = c("Under $15,000","$15,000 to $24,999","$25,000 to $34,999","$35,000 to $49,999","$50,000 to $74,999","$75,000 to $99,999","$100,000 to $149,999","$150,000 to $199,999","$200,000 and over"),
+                                      labels = c("Under $15,000","$15,000 to $24,999","$25,000 to $34,999","$35,000 to $49,999","$50,000 to $74,999","$75,000 to $99,999","$100,000 to $149,999","$150,000 to $199,999","$200,000 and over"))
+
+income_distribution %>% 
+  ggplot(aes(year,income_distribution,color=income_bracket))+geom_line()+facet_wrap(~race)
+  
+
+
+
+```
+
+
+
+```{r}
+tt$income_mean
+
+
+
+```
+
