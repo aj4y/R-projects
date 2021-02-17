@@ -1,0 +1,149 @@
+---
+title: "tidytuesday_dubois_challenge"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidytuesdayR)
+library(tidyverse)
+library(janitor)
+library(plotly)
+
+```
+
+```{r}
+tt <- tidytuesdayR::tt_load('2021-02-16')
+
+tt
+
+
+```
+
+```{r}
+# Challenge01: Comparative Increase of White and Colored Population in Georgia
+
+georgia_pop <- tt$georgia_pop
+
+
+georgia_pop %>% 
+  clean_names()%>%
+  gather(.,race,population_increase,-year)%>%
+  filter(population_increase >0)%>%
+  mutate(population_increase = population_increase/100)%>%
+  ggplot(aes(year,population_increase))+geom_line(aes(linetype = race))+
+  scale_y_continuous(labels = scales::percent)+
+  coord_flip()+
+  labs(x = "Year",
+       y = "Percentage increase in Population",
+       color = "Race",
+       title = "Trend of percentage increase in Population over the years by Race")
+  
+
+
+
+```
+
+
+```{r}
+# Challenge02: Conjugal Condition
+
+conjugal <- tt$conjugal
+
+
+conjugal %>% 
+  clean_names()%>%
+  gather(.,status,pct, -population,-age)%>%
+  ggplot(aes(age,pct,fill=status))+
+  geom_col(width = 0.8,position='fill')+facet_wrap(~population)+
+  scale_y_continuous(labels = scales :: percent)+
+  labs(x = "Age group",
+       y = "Percentage",
+       title = "Break up of population by Conjugal status",
+       fill = "Conjugal status")
+
+
+
+```
+
+```{r}
+#Challenge03: Occupations of Negroes and Whites in Georgia
+
+occupation <- tt$occupation
+
+occupation %>% 
+  ggplot(aes(x="",y=Percentage,fill=Occupation))+geom_col()+coord_polar("y",start=0)+
+  facet_wrap(~Group)
+
+
+
+```
+
+
+```{r}
+#challenge04: Proportion of Freeman and Slaves Among American Negroes
+
+freed_slaves<-tt$freed_slaves
+
+freed_slaves%>%
+  clean_names()%>%
+  ggplot(aes(year,free))+geom_area()+
+  scale_x_continuous(position = 'top')+
+  scale_y_reverse()+
+  labs(x="Year",
+       y="Percentage of free men",
+       title = "Percentage of free mein over the years")
+
+
+
+```
+
+```{r}
+#challenge05: Income and Expenditure of 150 Negro Families in Atlanta, GA, USA
+income <- tt$income
+income%>%
+  clean_names()%>%
+  gather(.,expense_type,value,-class,-actual_average)%>%
+  mutate(expense_type = fct_reorder(expense_type,value,mean))%>%
+  ggplot(aes(class,value,fill = expense_type))+geom_col(position = 'fill')+coord_flip()
+
+
+#not able to add data table 
+
+
+```
+
+
+```{r}
+#challenge06: City and Rural Population 1890
+
+city_rural <- tt$city_rural
+
+
+```
+
+
+```{r}
+#challenge07: Assessed Value of Household and Kitchen Furniture Owned by Georgia Negroes.
+
+furniture <- tt$furniture
+furniture%>%
+  clean_names()%>%
+  ggplot(aes(year,houshold_value_dollars))+geom_col()
+
+
+
+```
+
+```{r}
+
+
+
+```
+
