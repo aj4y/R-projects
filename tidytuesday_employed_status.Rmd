@@ -23,15 +23,28 @@ employed <- tt$employed %>%
   filter(!is.na(industry_total))
 
 employed %>%
-  filter(race_gender!="TOTAL")%>%
+  filter(race_gender %in% c("Asian","Black or African American","White"))%>%
   mutate(industry=fct_reorder(industry,employ_n,sum),
          race_gender=fct_reorder(race_gender,employ_n,sum))%>%
   ggplot(aes(employ_n,industry,fill=race_gender))+geom_col()+
   facet_wrap(~year)+
   labs(x = "No of people employed",
        y= "Industry",
-       fill = "Race / Gender",
+       fill = "Race",
        title = "Industry wise no of employed people across years")
+
+
+employed %>%
+  filter(race_gender %in% c("Men","Women"))%>%
+  mutate(industry=fct_reorder(industry,employ_n,sum),
+         race_gender=fct_reorder(race_gender,employ_n,sum))%>%
+  ggplot(aes(employ_n,industry,fill=race_gender))+geom_col()+
+  facet_wrap(~year)+
+  labs(x = "No of people employed",
+       y= "Industry",
+       fill = "Gender",
+       title = "Industry wise no of employed people across years")
+
 
 
   
@@ -39,15 +52,78 @@ employed %>%
 
 ```{r}
 
-employed %>% 
-  filter(race_gender!="TOTAL")%>%
-  group_by(race_gender,year)%>%
-  summarise(race_n = sum(employ_n))%>%
-  ggplot(aes(year,race_n,color = race_gender))+geom_line()
-  
-  
-  
+employed %>%
+  filter(race_gender %in% c("Asian","Black or African American","White"))%>%
+  group_by(year,race_gender)%>%
+  summarise(year_total = sum(employ_n))%>%
+  mutate(pct = year_total/sum(year_total))%>%
+  ggplot(aes(year,pct,fill=race_gender))+geom_area(color='black')+
+  labs(x = "Year",
+       y= "Percentage of population",
+       title = "Working population breakup across years")
 
+
+employed %>%
+  filter(race_gender %in% c("Asian","Black or African American","White"))%>%
+  group_by(year,race_gender,industry)%>%
+  summarise(year_total = sum(employ_n))%>%
+  mutate(pct = year_total/sum(year_total),
+         industry = fct_reorder(industry,year_total,sum))%>%
+  ggplot(aes(year,pct,fill=race_gender))+geom_area(color='black')+
+  facet_wrap(~industry)+
+  scale_y_continuous(labels = scales::percent)+
+  labs(x = "Year",
+       y= "Percentage of population",
+       title = "Working population breakup across years industry wise")
+
+# Eductation and healthcare has maximum population, proporation of Asians have been increasing in Professional & Business industry 
+
+```
+
+
+```{r}
+employed %>% 
+  filter(race_gender %in% c("Asian","Black or African American","White"))%>%
+  mutate(major_occupation = fct_reorder(major_occupation,employ_n))%>%
+  group_by(year,race_gender,major_occupation)%>%
+  summarise(year_total = sum(employ_n))%>%
+  mutate(pct = year_total/sum(year_total),
+         major_occupation = fct_reorder(major_occupation,year_total,sum))%>%
+  ggplot(aes(year,pct,fill=major_occupation))+geom_area(color='black')+
+  scale_y_continuous(labels = scales::percent)+
+  facet_wrap(~race_gender)+
+  labs(x = "Year",
+       y= "Percentage of population",
+       title = "Working population breakup across years major occupation wise",
+       fill= "Major Occupation")
+  
+employed %>% 
+  filter(race_gender %in% c("Asian","Black or African American","White"))%>%
+  mutate(minor_occupation = fct_reorder(minor_occupation,employ_n))%>%
+  group_by(year,race_gender,minor_occupation)%>%
+  summarise(year_total = sum(employ_n))%>%
+  mutate(pct = year_total/sum(year_total),
+         minor_occupation = fct_reorder(minor_occupation,year_total,sum))%>%
+  ggplot(aes(year,pct,fill=minor_occupation))+geom_area(color='black')+
+  facet_wrap(~race_gender)+
+  scale_y_continuous(labels = scales::percent)+
+  labs(x = "Year",
+       y= "Percentage of population",
+       title = "Working population breakup across years minor occupation wise",
+       fill ="Minor Occupation")
+
+# Asians are gaining share in the Management and professional occupation area across industries 
+
+
+```
+
+
+```{r}
+
+earn <- tt$earn
+
+
+earn %>% 
 
 
 ```
