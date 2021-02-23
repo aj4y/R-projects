@@ -118,8 +118,8 @@ employed %>%
 ```
 
 
-```{r}
 
+```{r}
 earn <- tt$earn
 
 grp_plot <- function(data,y_var,grp){
@@ -148,7 +148,6 @@ earn %>%
   labs (x = "year",
         y = "No of people employed ",
         title = "No of people employed sex over the years")
-
 
 
 ```
