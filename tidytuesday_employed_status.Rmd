@@ -1,0 +1,37 @@
+---
+title: "tidytuesday_employed_status"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+
+
+```
+
+```{r}
+tt <- tidytuesdayR::tt_load('2021-02-23')
+
+employed <- tt$employed %>%
+  filter(!is.na(industry_total))
+
+employed %>%
+  filter(race_gender!="TOTAL")%>%
+  mutate(industry=fct_reorder(industry,employ_n,sum),
+         rrace_gender=fct_reorder(race_gender,employ_n,sum))%>%
+  ggplot(aes(employ_n,industry,fill=race_gender))+geom_col()+
+  facet_wrap(~year)+
+  labs(x = "No of people employed",
+       y= "Industry",
+       fill = "Race / Gender",
+       title = "Industry wise no of employed people across years")
+  
+```
+
