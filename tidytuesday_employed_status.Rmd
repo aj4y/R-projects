@@ -25,13 +25,30 @@ employed <- tt$employed %>%
 employed %>%
   filter(race_gender!="TOTAL")%>%
   mutate(industry=fct_reorder(industry,employ_n,sum),
-         rrace_gender=fct_reorder(race_gender,employ_n,sum))%>%
+         race_gender=fct_reorder(race_gender,employ_n,sum))%>%
   ggplot(aes(employ_n,industry,fill=race_gender))+geom_col()+
   facet_wrap(~year)+
   labs(x = "No of people employed",
        y= "Industry",
        fill = "Race / Gender",
        title = "Industry wise no of employed people across years")
+
+
   
+```
+
+```{r}
+
+employed %>% 
+  filter(race_gender!="TOTAL")%>%
+  group_by(race_gender,year)%>%
+  summarise(race_n = sum(employ_n))%>%
+  ggplot(aes(year,race_n,color = race_gender))+geom_line()
+  
+  
+  
+
+
+
 ```
 
