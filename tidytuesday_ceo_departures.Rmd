@@ -1,0 +1,77 @@
+---
+title: "tidytuesday_ceo_departures"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+library(tidytuesdayR)
+library(tidyverse)
+
+
+
+```
+
+```{r}
+tt <- tidytuesdayR::tt_load('2021-04-27')
+
+
+departures <- tt$departures
+
+departures %>% 
+  mutate(departure_code_type = case_when(
+    departure_code == 1 ~ "Involuntary - CEO death",
+    departure_code == 2 ~ "Involuntary - CEO illness",
+    departure_code == 3 ~ "Involuntary – CEO dismissed for job performance",
+    departure_code == 4 ~ "Involuntary - CEO dismissed for legal violations or concerns",
+    departure_code == 5 ~ "Voluntary - CEO retired",
+    departure_code == 6 ~ "Voluntary - new opportunity (new career driven succession)",
+    departure_code == 7 ~ "Other",
+    departure_code == 8 ~ "Missing",
+    departure_code == 9 ~ "Execucomp error",
+  ))%>%
+  count(departure_code,departure_code_type,fyear,sort=TRUE)%>%
+  mutate(departure_code_type = fct_reorder(as.factor(departure_code_type),n),
+         fyear = fct_reorder(as.factor(fyear),n))%>%
+  ggplot(aes(departure_code_type,n,fill = fyear))+geom_col()+coord_flip()+
+  labs(title = "Top reasons for CEO departures over the years",
+       x = "Departure reason",
+       y = "Count")
+
+
+
+
+  ```
+```
+
+
+```{r}
+
+
+departures %>%
+  filter(departure_code >0)%>%
+  mutate(departure_code_type = case_when(
+    departure_code == 1 ~ "Involuntary - CEO death",
+    departure_code == 2 ~ "Involuntary - CEO illness",
+    departure_code == 3 ~ "Involuntary – CEO dismissed for job performance",
+    departure_code == 4 ~ "Involuntary - CEO dismissed for legal violations or concerns",
+    departure_code == 5 ~ "Voluntary - CEO retired",
+    departure_code == 6 ~ "Voluntary - new opportunity (new career driven succession)",
+    departure_code == 7 ~ "Other",
+    departure_code == 8 ~ "Missing",
+    departure_code == 9 ~ "Execucomp error",
+  ))%>%
+  group_by(departure_code,departure_code_type,fyear)%>%
+  summarise(n = n())%>%
+  group_by(fyear)%>%
+  mutate(pct = n/sum(n))%>%
+  ggplot(aes(fyear,pct,fill=departure_code_type))+geom_area()+
+  labs(title = "Top reasons for CEO departures over the years",
+       x = "% contribution of reason")
+
+
+
+
+
