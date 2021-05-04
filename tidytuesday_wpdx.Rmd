@@ -1,0 +1,39 @@
+---
+title: "tidytuesday_wpdx"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+library(tidytuesdayR)
+library(tidyverse)
+library(lubridate)
+
+
+```
+
+
+```{r}
+
+tt <-  tidytuesdayR::tt_load('2021-05-04')
+
+tt
+
+water <- tt$water
+
+```
+
+```{r}
+
+water %>% 
+  mutate(report_date = as.Date(report_date,"%m/%d/%Y"))%>%
+  mutate(report_year = year(report_date))%>%
+  
+
+
+?as.Date
+
+```
+
