@@ -50,8 +50,55 @@ water %>%
   mutate(report_year = year(report_date))%>%
   mutate(country_name = as_factor(country_name))%>%
   count(report_year)%>%
-  ggplot(aes(report_year,n))+geom_line()
+  filter(report_year > "2000")%>%
+  ggplot(aes(report_year,n))+geom_line()+
+  labs(title="Trend of observations / records year wise")
+
+# Observations are recorded mostly after year 2000
+       
+  
 
 
 ```
+
+
+```{r}
+
+water %>% 
+  count(country_name,water_source,sort = TRUE)%>% 
+  filter(water_source !='NA')%>%
+  mutate(water_source = fct_reorder(as.factor(water_source),n,.fun = sum))%>%
+  ggplot(aes(water_source,n,fill=country_name))+geom_col()+coord_flip()+
+  labs(title = "Type of water source by country ",
+       y = "No of sources",
+       x = "Type of water source",
+       fill = "Country Name")
+
+# Most of the water comes from underground sources, surface water sources are very low in number 
+
+```
+
+
+```{r}
+
+
+water %>% 
+  filter(water_source != 'NA', water_tech !='NA')%>%
+  separate(water_tech,into = c('Tech',"MFG"),sep = '-',fill = 'right')%>%
+  mutate(MFG = replace_na(MFG,'Local'))%>%
+  mutate(Tech = str_trim(Tech, side = "both"))%>%
+  count(Tech,MFG)%>%
+  mutate(Tech = fct_reorder(Tech,n,.fun = sum),
+         MFG = fct_reorder(MFG,n, sum))%>%
+  ggplot(aes(n,Tech,fill = MFG))+geom_col()+
+  labs (title = " Type of Tech used to extract water along with Manufacturer",
+        x="",
+        y="")
+
+  
+# Hand pump is the most commonly used to tech. For most of the tech, manufacturer details are not available, this is assumed to be local made
+
+
+```
+
 
