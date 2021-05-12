@@ -1,0 +1,47 @@
+---
+title: "tidytuesday_us_broadband"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+library(tidytuesdayR)
+library(tidyverse)
+
+
+```
+
+```{r}
+
+tt <- tidytuesdayR::tt_load('2021-05-11')
+
+tt
+
+
+broadband <- tt$broadband %>% 
+
+
+broadband_zip <- tt$broadband_zip 
+
+
+broadband %>% 
+  count(ST,sort= TRUE) %>% 
+  mutate(ST = fct_reorder(ST, n))%>%
+  top_n(25)%>%
+  ggplot(aes(n,ST))+geom_col()+
+  labs(x = "Number of Counties",
+       y = "State",
+       title = "No of counties per state")
+
+
+```
+
+
+```{r}
+broadband_zip
+
+
+```
+
