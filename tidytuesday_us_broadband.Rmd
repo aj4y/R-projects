@@ -30,7 +30,12 @@ broadband <- tt$broadband%>%
   
 
 
-broadband_zip <- tt$broadband_zip 
+broadband_zip <- tt$broadband_zip %>% 
+  janitor::clean_names()%>%
+  rename(state = st)%>%
+  mutate(state = state.name[match(state,state.abb)])
+         #broadband_availability_per_fcc = parse_number(broadband_availability_per_fcc,na='-'),
+         #broadband_usage = parse_number(broadband_usage,na='-'))
 
 county_population <- read_excel("./co-est2019-annres.xlsx",skip = 3)%>%
   select(county = '...1',population_2017='2017')%>%
@@ -66,13 +71,29 @@ broadband_population %>%
 
 broadband_population %>% 
   arrange(desc(population_2017))%>%
-  head(25)%>%
+  head(40)%>%
   mutate(county_name = fct_reorder(county_name,broadband_availability_per_fcc))%>%
   ggplot(aes(broadband_availability_per_fcc,county_name))+geom_point()+
-  scale_x_continuous(labels = percent_format  )
+  scale_x_continuous(labels = scales::percent_format())+
+  labs(x = "Broadband availability",
+       y= "County name",
+       title = "Counties with high broadband availability")
 
 
 
+
+broadband_population %>% 
+  arrange(desc(population_2017))%>%
+  head(200)%>%
+  mutate(county_name = fct_reorder(county_name,broadband_availability_per_fcc))%>%
+  ggplot(aes(population_2017,broadband_availability_per_fcc))+geom_point()+
+  geom_text(aes(label=county_name),check_overlap = TRUE,hjust=1,vjust =1)+
+  scale_y_continuous(labels = scales::percent_format())+
+  scale_x_log10(labels = scales::comma_format())+
+  expand_limits(x=200000)+
+  labs(x = "County population",
+       y= "Broadband availability",
+       title = "Broadband availabiltiy, population wise")
 
 
 
