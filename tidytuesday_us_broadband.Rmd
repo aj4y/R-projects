@@ -9,7 +9,8 @@ editor_options:
 
 library(tidytuesdayR)
 library(tidyverse)
-
+library(tidycensus)
+library(readxl)
 
 ```
 
@@ -20,17 +21,29 @@ tt <- tidytuesdayR::tt_load('2021-05-11')
 tt
 
 
-broadband <- tt$broadband %>% 
+broadband <- tt$broadband%>%
+  janitor::clean_names()%>%
+  rename(state = st)%>%
+  mutate(state = state.name[match(state,state.abb)],
+         broadband_availability_per_fcc = parse_number(broadband_availability_per_fcc,na='-'),
+         broadband_usage = parse_number(broadband_usage,na='-'))
+  
 
 
 broadband_zip <- tt$broadband_zip 
 
+county_population <- read_excel("./co-est2019-annres.xlsx",skip = 3)%>%
+  select(county = '...1',population_2017='2017')%>%
+  separate(county,c('county_name','state'),sep= ', ')%>%
+  #select(-state)%>%
+  mutate(county_name = str_remove(county_name,"^\\."))
+
 
 broadband %>% 
-  count(ST,sort= TRUE) %>% 
-  mutate(ST = fct_reorder(ST, n))%>%
+  count(state,sort= TRUE) %>% 
+  mutate(state = fct_reorder(state, n))%>%
   top_n(25)%>%
-  ggplot(aes(n,ST))+geom_col()+
+  ggplot(aes(n,state))+geom_col()+
   labs(x = "Number of Counties",
        y = "State",
        title = "No of counties per state")
@@ -40,7 +53,27 @@ broadband %>%
 
 
 ```{r}
-broadband_zip
+broadband_population <- broadband %>% 
+  inner_join(county_population,by = c('county_name','state'))%>%
+  arrange(desc(population_2017))
+
+broadband_population %>% 
+  arrange(desc(population_2017))%>%
+  head(25)%>%
+  mutate(county_name = fct_reorder(county_name,population_2017))%>%
+  ggplot(aes(population_2017,county_name))+geom_col()
+
+
+broadband_population %>% 
+  arrange(desc(population_2017))%>%
+  head(25)%>%
+  mutate(county_name = fct_reorder(county_name,broadband_availability_per_fcc))%>%
+  ggplot(aes(broadband_availability_per_fcc,county_name))+geom_point()+
+  scale_x_continuous(labels = percent_format  )
+
+
+
+
 
 
 ```
