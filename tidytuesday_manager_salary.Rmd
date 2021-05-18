@@ -1,0 +1,96 @@
+---
+title: "tidytuesday_manager_salary"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+
+library(tidyverse)
+library(tidytuesdayR)
+library(priceR)
+
+```
+
+```{r}
+tt <- tidytuesdayR::tt_load('2021-05-18')
+
+tt
+
+## Get latest exchange rates using the priceR package to convert salaries to USD currency 
+
+exchange_rate <- exchange_rate_latest('USD')
+
+survey <- tt$survey %>% 
+  mutate(currency = str_replace(currency,pattern = 'AUD/NZD',replacement = 'AUD'))%>%
+  left_join(exchange_rate, by = c('currency'))%>%
+  mutate(annual_salary_usd = annual_salary / one_usd_is_equivalent_to,
+         other_monetary_comp_usd = as.numeric(other_monetary_comp) / one_usd_is_equivalent_to)
+  
+
+survey %>% 
+  count(currency,sort=T)
+
+
+
+survey %>% 
+  count(how_old_are_you,gender,sort=T)%>%
+  ggplot(aes(how_old_are_you,n,fill=gender))+geom_col()+
+  labs(x = "Age group",
+       y = "No of respondents",
+       title = "Distribution of respondents acrross age groups",
+       fill = "Gender")
+
+
+
+survey %>% 
+  count(how_old_are_you,highest_level_of_education_completed,sort=T)%>%
+  ggplot(aes(how_old_are_you,n,fill=highest_level_of_education_completed))+geom_col()+
+  labs(x = "Age group",
+       y = "No of respondents",
+       title = "Distribution of respondents acrross age groups",
+       fill = "highest_level_of_education_completed")
+
+
+survey %>% 
+  count(overall_years_of_professional_experience,how_old_are_you)%>%
+  ggplot(aes(overall_years_of_professional_experience,how_old_are_you, size = n)) + geom_point()+
+  labs(x = "Years of experience ",
+       y = "Age group",
+       title = "Distribution of respondents acrross age groups and years of experience",
+       size = "No of respondents")
+
+
+```
+
+
+```{r}
+
+survey %>% 
+  filter(!is.na(annual_salary_usd))%>%
+  group_by(how_old_are_you,gender)%>%
+  summarise(avg_salary= mean(annual_salary_usd))%>%
+  ggplot(aes(how_old_are_you,avg_salary))+geom_col()+
+  scale_y_continuous(labels = scales :: comma_format())+
+  labs(x = "Age group",
+       y = "Annual average Salary in USD",
+       title = "Average annual salary across age groups")
+
+
+survey %>% 
+  filter(!is.na(annual_salary_usd))%>%
+  group_by(gender)%>%
+  summarise(avg_salary= mean(annual_salary_usd))%>%
+  mutate(gender = fct_reorder(gender, avg_salary,.fun = sum))%>%
+  ggplot(aes(gender,avg_salary))+geom_col()+
+  scale_y_continuous(labels = scales :: comma_format())+
+  labs(x = "Gender",
+       y = "Annual average Salary in USD",
+       title = "Average annual salary across Genders")
+
+
+
+```
+
