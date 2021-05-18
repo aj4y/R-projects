@@ -86,10 +86,23 @@ survey %>%
   mutate(gender = fct_reorder(gender, avg_salary,.fun = sum))%>%
   ggplot(aes(gender,avg_salary))+geom_col()+
   scale_y_continuous(labels = scales :: comma_format())+
+  coord_flip()+
   labs(x = "Gender",
        y = "Annual average Salary in USD",
        title = "Average annual salary across Genders")
 
+
+survey %>% 
+  filter(!is.na(annual_salary_usd))%>%
+  group_by(highest_level_of_education_completed)%>%
+  summarise(avg_salary= mean(annual_salary_usd))%>%
+  mutate(highest_level_of_education_completed = fct_reorder(highest_level_of_education_completed, avg_salary,.fun = sum))%>%
+  ggplot(aes(highest_level_of_education_completed,avg_salary))+geom_col()+
+  scale_y_continuous(labels = scales :: comma_format())+
+  coord_flip()+
+  labs(x = "Education level",
+       y = "Annual average Salary in USD",
+       title = "Average annual salary for various levels for education")
 
 
 ```
