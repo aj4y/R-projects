@@ -1,0 +1,105 @@
+---
+title: "tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tidytuesdayR)
+library(lubridate)
+
+
+tt <- tidytuesdayR::tt_load('2021-05-25')
+
+tt
+
+drivers <- tt$drivers
+
+
+world_records <- tt$records%>%
+  mutate(year = year(date))
+
+
+
+drivers
+
+world_records %>% view()
+
+
+```
+
+
+```{r}
+
+world_records %>% 
+  count(track,year,sort=T)%>%
+  ggplot(aes(year,n))+geom_line()+facet_wrap(~track)+
+  labs(x = 'Year',
+       y ='No of records',
+       title = "How records evolved over time ? ",
+       subtitle = "No of new records were higher when the game was launched and declined after")
+
+
+
+world_records %>% 
+  count(track,sort=T)%>%
+  mutate(track = fct_reorder(track,n))%>%
+  ggplot(aes(n,track))+geom_col()+
+  labs(x = 'Number of records',
+       y ='Tracks',
+       title = "Tracks with most records")
+
+
+
+world_records %>% 
+  group_by(track)%>%
+  summarise(lowest_time = min(time),
+            lowest_year = year[which.min(time)])%>%
+  mutate(track = fct_rev(fct_reorder(track,lowest_time)))%>%
+  ggplot(aes(lowest_time,track))+geom_col()+geom_text(aes(label=lowest_year,hjust = -1))+
+  expand_limits(x = c(0,75))+
+  labs(x= "Time in seconds",
+       y= "Track",
+       title = "Lowest time on each track with year of the record")
+
+
+world_records %>% 
+  group_by(track)%>%
+  summarise(lowest_time = min(time),
+            highest_time = max(time),
+            lowest_year = year[which.min(time)],
+            highest_year = year[which.max(time)])%>%
+  mutate(imp_pct = highest_time - lowest_time)%>%
+  mutate(track = fct_reorder(track,imp_pct))%>%
+  ggplot(aes(imp_pct,track))+geom_col()+
+  labs(x = "Improvement in record in Seconds",
+       y = "Track",
+       title = "Improvements in Records for each track")
+
+world_records %>% 
+  count(track,shortcut,sort=T)%>%
+  filter(shortcut == 'Yes')%>%
+  mutate(track = fct_reorder(track,n))%>%
+  ggplot(aes(n,track))+geom_col()+
+  labs(x = 'Number of records',
+       y ='Tracks',
+       title = "Tracks with most records with shortcuts")
+
+
+world_records %>%
+  filter(shortcut=='Yes')%>%
+  group_by(track)%>%
+  summarise(shortcut_year = min(year))
+  
+
+
+  
+  
+
+
+```
+
