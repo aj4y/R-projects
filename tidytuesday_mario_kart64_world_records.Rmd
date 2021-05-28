@@ -21,6 +21,7 @@ drivers <- tt$drivers
 
 
 world_records <- tt$records%>%
+  mutate(date = ymd(date))%>%
   mutate(year = year(date))
 
 
@@ -91,14 +92,72 @@ world_records %>%
 
 
 world_records %>%
-  filter(shortcut=='Yes')%>%
+  mutate(is_shortcut_discovered = ifelse(shortcut == 'Yes',TRUE,FALSE))%>%
   group_by(track)%>%
-  summarise(shortcut_year = min(year))
+  mutate(shortcut_discovered = ifelse(sum(is_shortcut_discovered)>0,"Yes","No"))%>%
+  group_by(track,shortcut_discovered)%>%
+  summarise(shortcut_year = min(year))%>%
+  mutate(shortcut_year = ifelse(shortcut_discovered == 'No',NA,shortcut_year))
+
+# All shortcuts were discovered in 1997, for 4 tracks the shortcuts are not discovered yet
+
   
+world_records%>%
+  mutate(is_shortcut_discovered = ifelse(shortcut == 'Yes',TRUE,FALSE))%>%
+  group_by(track)%>%
+  mutate(shortcut_discovered = ifelse(sum(is_shortcut_discovered)>0,"Yes","No"))%>%
+  filter(shortcut_discovered == 'Yes')%>%
+  group_by(track,shortcut)%>%
+  summarise(min_time = min(time))%>%
+  spread(key = shortcut,value=min_time)%>%
+  ungroup()%>%
+  mutate(time_diff = No - Yes)%>%
+  mutate(track = fct_reorder(track,time_diff))%>%
+  ggplot(aes(time_diff,track))+geom_col()+
+  labs(x ="Time difference between lowest time with and without shortcut",
+       y= "Track",
+       title = "Track wise time difference between records with and without shortcuts")
 
 
-  
-  
+world_records %>% 
+  group_by(track)%>% 
+  summarise(max_duration = max(record_duration))%>%
+  left_join(.,world_records %>% select(track,record_duration,player,year),
+            by = c('track'='track','max_duration'='record_duration'))%>%
+  unique()%>%
+  ungroup()%>%
+  mutate(track = fct_reorder(track,max_duration))%>%
+  ggplot(aes(max_duration,track))+geom_col()+
+  labs(x = "Max duration of record",
+       y="Track",
+       title = "Longest standing world record for each track with or without shortcut")
+
+world_records%>% 
+  count(player,sort=T)%>%
+  mutate(player = fct_reorder(player,n))%>%
+  top_n(25)%>%
+  ggplot(aes(n,player))+geom_col()+
+  labs(x = "No of records",
+       y="Player name",
+       title = "Players with max world records")
+
+world_records %>% 
+  group_by(player)%>%
+  summarise(year=max(year))%>%
+  arrange(desc(year))
+# Recent players list
+
+
+world_records %>% 
+  group_by(track,system_played,shortcut)%>%
+  summarise(record_time= min (time))%>%
+  ungroup()%>%
+  mutate(track = fct_reorder(track,record_time))%>%
+  ggplot(aes(record_time,track,fill=system_played))+geom_col(position='dodge')+facet_wrap(~shortcut)+
+  labs(x ='Record time',
+       y='Track',
+       fill='System Played',
+       title = "Record timings for each track system wise with and without shortcuts")
 
 
 ```
