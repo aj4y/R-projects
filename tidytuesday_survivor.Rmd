@@ -1,0 +1,101 @@
+---
+title: "tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidytuesdayR)
+library(tidyverse)
+library(survivoR)
+library(patchwork)
+
+tt <- tidytuesdayR::tt_load('2021-06-01')
+
+tt <- tidytuesdayR::tt_load(2021, week = 23)
+
+
+summary <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-01/summary.csv')
+
+challenges <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-01/challenges.csv')
+
+castaways <- castaways
+
+viewers <- viewers  
+
+jury_votes <- jury_votes
+
+```
+
+
+```{r}
+p1 <- summary %>% 
+  ggplot(aes(season, viewers_mean,color=timeslot))+geom_point()+
+  labs(title = "Mean viewers per season",x="",y="viewers in mn")
+
+p2 <- summary %>% 
+  ggplot(aes(season, viewers_premier,color=timeslot))+geom_point()+
+  labs(title = "Premier viewers per season",x="",y="viewers in mn")
+
+p3 <- summary %>% 
+  ggplot(aes(season, viewers_finale,color=timeslot))+geom_point()+
+  labs(title = "Finale viewers per season",x="Season",y="viewers in mn")
+
+p4 <- summary %>% 
+  ggplot(aes(season, viewers_reunion,color=timeslot))+geom_point()+
+  labs(title = "Reunion viewers per season",x="Season",y="viewers in mn")
+
+p1/p2/p3/p4
+
+
+### Viewership has been going down consistently over the years , timelsot changed from Thu to Wed after 20th season 
+
+```
+
+
+```{r}
+summary %>% 
+  ggplot(aes(season, rank,color=timeslot))+geom_point()+
+  labs(title = "Viewer ranking per season",x="Season",y="Rank")
+
+summary %>% 
+  count(country,sort=T)%>%
+  mutate(country = fct_reorder(country,n))%>%
+  top_n(5)%>%
+  ggplot(aes(n,country))+geom_col()+
+  labs(x ="No of seasons",
+       y="Country",
+       title = "No of seasons per country")
+
+
+```
+
+
+```{r}
+
+summary %>% 
+  mutate(screen_duration = ended - premiered, film_duration = filming_ended - filming_started)%>%
+  ggplot(aes(screen_duration))+geom_histogram(binwidth = 5)+
+  labs(title = "Screen duration distribution")
+  
+
+
+summary %>% 
+  mutate(screen_duration = ended - premiered, film_duration = filming_ended - filming_started)%>%
+  ggplot(aes(film_duration))+geom_histogram(binwidth = 2)+
+  labs(title = "Filiming duration distribution")
+### Filming has been completed in 38 days for all seasons except one
+
+```
+
+```{r}
+
+
+
+
+
+```
+
