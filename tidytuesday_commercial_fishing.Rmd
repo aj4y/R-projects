@@ -1,0 +1,105 @@
+---
+title: "tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+```
+
+
+```{r}
+
+library(tidyverse)
+library(tidytuesdayR)
+library(scales)
+
+tt <- tidytuesdayR::tt_load('2021-06-08')
+
+fishing <- tt$fishing %>%
+  mutate(decade = year - year %%10)%>%
+  mutate(species   = str_replace(str_to_title(species),'([^s])s$','\\1'))%>%
+  mutate(species = str_replace(species,'Amercian Eel','American Eel'))
+
+
+fishing %>% 
+  filter(!is.na(grand_total))%>%
+  group_by(decade,lake)%>%
+  summarise(total = mean(grand_total))%>%
+  ggplot(aes(decade,total,color=lake))+geom_line()+
+  scale_y_continuous(labels = comma)+
+  labs( x = 'Decade',
+        y = 'Total observed fish',
+        title = 'Trend of total obvserved fish decade wise')
+
+
+fishing %>% 
+  filter(!is.na(grand_total))%>%
+  group_by(decade,lake,species)%>%
+  summarise(total = mean(grand_total))%>%
+  ggplot(aes(decade,total,fill=species))+geom_col()+theme(legend.position = 'none')+
+  scale_y_continuous(labels = comma)+
+  labs( x = 'Decade',
+        y = 'Total observed fish',
+        title = 'Trend of total obvserved fish by species')
+
+
+fishing %>% 
+  filter(!is.na(values))%>%
+  group_by(decade,lake)%>%
+  summarise(total = sum(values))%>%
+  ggplot(aes(decade,total,color=lake))+geom_line()+
+  scale_y_continuous(labels = comma)+
+  labs( x = 'Decade',
+        y = 'Production values',
+        title = 'Trend of total production value decade wise')
+
+
+
+
+fishing %>% 
+  filter(!is.na(grand_total),species == 'Lake Whitefish')%>%
+  group_by(decade,lake)%>%
+  summarise(total = mean(grand_total))%>%
+  ggplot(aes(decade,total,color=lake))+geom_line()+
+  scale_y_continuous(labels = comma) +
+  labs( x = 'Decade',
+        y = 'Total observed fish',
+        title = 'Trend of total obvserved Lake Whitefish decade wise')
+
+fishing %>% 
+  filter(!is.na(values))%>%
+  group_by(species,lake)%>%
+  summarise(total_value = sum(values, na.rm =  TRUE))%>%
+  ungroup()%>%
+  mutate(lake = fct_reorder(lake,total_value,.desc = T),
+         species = fct_lump(species,25,w=total_value),
+         species = fct_reorder(species, total_value))%>%
+  ggplot(aes(lake,species,fill=total_value))+geom_tile()+
+  scale_fill_gradient2(low='white',high = 'darkblue')+
+  theme(panel.grid = element_blank(),panel.background = element_blank())+
+  labs(x = 'Great lakes',
+       y = "Species",
+       title = 'Lake-Species tile map w.r.t production values')
+  
+
+
+
+
+```
+
+
+```{r}
+
+stocked <- tt$stocked
+
+stocked %>% 
+  glimpse()
+
+````
+
+
