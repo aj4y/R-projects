@@ -17,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidytuesdayR)
 library(scales)
+library(janitor)
 
 tt <- tidytuesdayR::tt_load('2021-06-08')
 
@@ -80,7 +81,7 @@ fishing %>%
          species = fct_lump(species,25,w=total_value),
          species = fct_reorder(species, total_value))%>%
   ggplot(aes(lake,species,fill=total_value))+geom_tile()+
-  scale_fill_gradient2(low='white',high = 'darkblue')+
+  scale_fill_gradient2(low='blue',high = 'darkblue')+
   theme(panel.grid = element_blank(),panel.background = element_blank())+
   labs(x = 'Great lakes',
        y = "Species",
@@ -95,10 +96,22 @@ fishing %>%
 
 ```{r}
 
-stocked <- tt$stocked
+stocked <- tt$stocked%>%
+  clean_names()
 
 stocked %>% 
-  glimpse()
+  count(species,sort=T)
+
+
+stocked %>% 
+  count(st_site,sort=T)
+
+
+stocked %>% 
+  count(stage,sort=T)
+
+
+#### lot of data points need more explanation to do further analysis 
 
 ````
 
