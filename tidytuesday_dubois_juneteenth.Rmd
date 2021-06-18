@@ -1,0 +1,47 @@
+---
+title: "tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+````{R}
+library(tidytuesdayR)
+library(tidyverse)
+
+tt <- tidytuesdayR::tt_load('2021-06-15')
+
+tt
+
+tweets <- tt$tweets
+
+tweets %>% 
+  mutate(date = as.Date(datetime))%>%
+  group_by(date)%>%
+  summarise(n=n_distinct(content))%>%
+  ggplot(aes(date,n))+geom_col()
+
+
+tweets %>% 
+  mutate(date = as.Date(datetime))%>%
+  group_by(date)%>%
+  summarise(n=n_distinct(like_count))%>%
+  ggplot(aes(date,n))+geom_col()
+
+tweets %>% 
+  mutate(date = as.Date(datetime))%>%
+  filter(username == 'AlDatavizguy')%>%
+  ggplot(aes(date,followers))+geom_col()
+
+tweets %>%
+  mutate(device = str_extract(text,">(\\w*)$<"))%>%
+  count(device,sort=T)
+  
+
+````
