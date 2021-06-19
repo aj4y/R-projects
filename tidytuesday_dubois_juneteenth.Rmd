@@ -40,8 +40,15 @@ tweets %>%
   ggplot(aes(date,followers))+geom_col()
 
 tweets %>%
-  mutate(device = str_extract(text,">(\\w*)$<"))%>%
-  count(device,sort=T)
+  mutate(device = str_extract(text,">[a-zA-Z\\s]+<"))%>%
+  mutate(device = str_extract(device,"[a-zA-Z\\s]+"))%>%
+  count(device,sort=T)%>%
+  mutate(device = fct_rev(fct_reorder(device,n)))%>%
+  ggplot(aes(device,n))+geom_col()+
+  theme(axis.text.x = element_text(angle = 45))+
+  labs(x="Device",
+       y = "Count of tweets",
+       title = "No of tweets by Device")
   
 
 ````
