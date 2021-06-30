@@ -1,0 +1,112 @@
+---
+title: "tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(tidytuesdayR)
+library(tidyverse)
+library(maps)
+library(rgdal)
+
+
+tt <- tidytuesdayR::tt_load('2021-06-29')
+
+
+animal_rescues <- tt$animal_rescues
+
+animal_rescues %>% 
+  count(cal_year,sort=T)%>%
+  ggplot(aes(cal_year,n))+geom_col()+
+  labs(x= 'Year',
+       y= 'No of incidents',
+       title = ' No of incidents per year')
+
+
+animal_rescues %>% 
+  count(final_description,sort=T)%>%
+  filter(final_description != 'Redacted')%>%
+  mutate(final_description= fct_reorder(final_description,n))%>%
+  top_n(10)%>%
+  ggplot(aes(n,final_description))+geom_col()+
+  labs(x = 'No of incidents',
+       y = 'Incident discreption',
+       title = 'Top 10 type of incidents excluding the "Redacted" ones')
+
+animal_rescues %>% 
+  count(animal_group_parent,sort=T)%>%
+  mutate(animal_group_parent= fct_reorder(animal_group_parent,n))%>%
+  top_n(10)%>%
+  ggplot(aes(n,animal_group_parent))+geom_col()+
+  labs(x = 'No of incidents',
+       y = 'Animal groups',
+       title = 'Top 10 Animal groups rescued')
+
+
+animal_rescues %>% 
+  count(originof_call,sort=T)%>%
+  mutate(originof_call = fct_reorder(originof_call,n))%>%
+  ggplot(aes(n,originof_call))+geom_col()+
+  labs(x = 'No of incidents',
+       y = 'Origin of call',
+       title = 'Rescue call origins ')
+
+
+animal_rescues %>% 
+  count(property_category,sort=T)%>%
+  mutate(property_category = fct_reorder(property_category,n))%>%
+  ggplot(aes(n,property_category))+geom_col()+
+  labs(x = 'No of incidents',
+       y = 'Property Category',
+       title = 'Rescue call per property category ')
+
+animal_rescues %>% 
+  count(special_service_type_category,sort=T)%>%
+  mutate(special_service_type_category = fct_reorder(special_service_type_category,n))%>%
+  ggplot(aes(n,special_service_type_category))+geom_col()+
+  labs(x = 'No of incidents',
+       y = 'Special service category',
+       title = 'No of incidents by special service category')
+
+
+animal_rescues %>% 
+  count(special_service_type,sort=T)%>%
+  mutate(special_service_type = fct_reorder(special_service_type,n))%>%
+  ggplot(aes(n,special_service_type))+geom_col()+
+  labs(x = 'No of incidents',
+       y = 'Special service type',
+       title = 'No of incidents by special service type')
+
+```
+
+
+``` {r}
+
+### Plotting london map - WIP 
+
+animal_rescues_geo <- animal_rescues %>% 
+  filter(latitude!='NULL',latitude !='0')%>%
+  mutate(latitude = as.numeric(latitude),longitude = as.numeric(longitude))
+  
+
+  
+ggplot()+
+  geom_polygon(data = uk_geo ,aes(long,lat,group=group), fill = 'gray90',color='black')+
+  geom_point( data = animal_rescues_geo,aes(longitude,latitude))+
+  xlim(-0.5,0.5)+ylim(51,52)
+
+
+
+  
+uk_geo <- map_data('world') %>% filter(region=='UK')
+
+
+london_geo <- readOGR(file.path(data),layer='london_sport')
+
+
+```
