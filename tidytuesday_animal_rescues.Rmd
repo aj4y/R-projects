@@ -87,26 +87,39 @@ animal_rescues %>%
 
 ``` {r}
 
-### Plotting london map - WIP 
+### Plotting London map - WIP ( Not able to get shapefile for London city)
 
-animal_rescues_geo <- animal_rescues %>% 
+animal_rescues %>% 
   filter(latitude!='NULL',latitude !='0')%>%
   mutate(latitude = as.numeric(latitude),longitude = as.numeric(longitude))
+  geom_point( data = animal_rescues_geo,aes(longitude,latitude))
   
 
-  
-ggplot()+
-  geom_polygon(data = uk_geo ,aes(long,lat,group=group), fill = 'gray90',color='black')+
-  geom_point( data = animal_rescues_geo,aes(longitude,latitude))+
-  xlim(-0.5,0.5)+ylim(51,52)
 
 
 
-  
 uk_geo <- map_data('world') %>% filter(region=='UK')
 
 
 london_geo <- readOGR(file.path(data),layer='london_sport')
 
+
+```
+
+
+```{r}
+
+animal_rescues %>% 
+  filter(incident_notional_cost!='NULL' )%>%
+  group_by(special_service_type_category)%>%
+  summarise(total_cost = sum(as.numeric(incident_notional_cost)))%>%
+  ungroup()%>%
+  mutate(special_service_type_category = fct_reorder(special_service_type_category,total_cost))%>%
+  ggplot(aes(total_cost,special_service_type_category))+geom_col()+
+  scale_x_continuous(label = scales::label_dollar())+
+  labs(x = 'Cost in dollars',
+       y = 'Special Service type',
+       title = 'Cost of incidents by service type' )
+  
 
 ```
