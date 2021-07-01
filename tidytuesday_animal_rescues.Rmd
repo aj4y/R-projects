@@ -91,11 +91,13 @@ animal_rescues %>%
 
 animal_rescues %>% 
   filter(latitude!='NULL',latitude !='0')%>%
-  mutate(latitude = as.numeric(latitude),longitude = as.numeric(longitude))
-  geom_point( data = animal_rescues_geo,aes(longitude,latitude))
+  mutate(latitude = as.numeric(latitude),longitude = as.numeric(longitude))%>%
+  ggplot(aes(longitude,latitude,color = special_service_type_category))+geom_point()+
+  labs(color=NULL,
+       x = 'Long',
+       y = 'Lat',
+       title = ' Geographical representation of Serivce types')
   
-
-
 
 
 uk_geo <- map_data('world') %>% filter(region=='UK')
