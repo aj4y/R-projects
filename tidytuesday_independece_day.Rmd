@@ -1,0 +1,85 @@
+---
+title: "tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+
+library(tidytuesdayR)
+library(tidyverse)
+
+tt <- tidytuesdayR::tt_load('2021-07-06')
+
+tt
+
+
+holidays <- tt$holidays
+
+holidays %>% 
+  count(country,sort= T)%>%
+  count(n)%>%
+  ggplot(aes(n,nn))+geom_col()+
+  labs(x ="No of independence events",
+       y= "No of countries",
+       title = "21 Countries have experienced 2 Independence events")
+
+
+holidays %>% 
+  filter(!is.na(date_mdy))%>%
+  mutate(decade = year - year %% 10)%>%
+  filter(year > 1750)%>%
+  count(decade)%>%
+  ggplot(aes(decade,n))+geom_col()+
+  labs( x = 'Decade',
+        y = 'No of independence events',
+        title = 'No of countries becoming independent decade wise')
+
+holidays %>% 
+  filter(!is.na(independence_from))%>%
+  count(independence_from,sort=T)%>%
+  mutate(independence_from = fct_reorder(independence_from,n))%>%
+  top_n(10)%>%
+  ggplot(aes(n,independence_from))+geom_col()+
+  labs(x='',
+       y ='',
+       title ='Countries that ruled the most number of countries')
+
+holidays %>% 
+  filter(!is.na(date_mdy))%>%
+  count(month,sort=T)%>%
+  mutate(month = fct_reorder(month,n))%>%
+  ggplot(aes(n,month))+geom_col()+
+  labs(x = 'No of events',
+       y = 'Months',
+       title ='Most of the events fall in Aug/Jul/Sep month')
+
+### List of countries rule by 2 or more countries together 
+holidays %>% 
+  filter(str_detect(independence_from,'and'))%>%
+  count(country)
+
+
+holidays %>% 
+  select(country,independence_from)%>%
+  separate_rows(independence_from,sep=' and ')%>%
+  separate_rows(independence_from,sep=', ')%>%
+  filter(!is.na(independence_from),independence_from !='and')%>%
+  group_by(independence_from)%>%
+  mutate(n = n())%>%
+  mutate(independence_from = fct_reorder(independence_from,n))%>%
+  ggplot(aes(country,independence_from))+geom_point()
+  
+  
+
+
+
+
+
+
+
+```
