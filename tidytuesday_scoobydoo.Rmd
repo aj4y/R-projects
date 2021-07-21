@@ -1,0 +1,102 @@
+---
+title: "tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tidytuesdayR)
+library(lubridate)
+
+
+tt <- tidytuesdayR::tt_load('2021-07-13')
+
+tt
+
+scoobydoo <- tt$scoobydoo
+scoobydoo %>%
+  count(network,sort = T)%>%
+  mutate(network= fct_reorder(network,n))%>%
+  ggplot(aes(n,network))+geom_col()+
+  labs(x = 'No of episodes',
+       y = 'Network',
+       title = 'No of episodes aired on each network')
+
+
+scoobydoo %>% 
+  count(season,sort=T)%>%
+  filter(season  %in% c (1,2,3,4))%>%
+  mutate(season = fct_reorder(season,n))%>%
+  ggplot(aes(n,season))+geom_col()+
+  labs(x = 'No of episodes',
+       y = 'Season Number',
+       title = 'No of episodes per season, excluding Movies, Special and Crossover')
+
+
+
+scoobydoo %>% 
+  mutate(imdb = as.numeric(imdb))%>%
+  filter(season  %in% c (1,2,3,4))%>%
+  ggplot(aes(imdb))+geom_histogram()+
+  labs(x = 'IMDB ratings per episode',
+       y= '',
+       title = 'IMDB ratings per episode / movie')
+
+
+
+scoobydoo %>% 
+  mutate(engagement = as.numeric(engagement))%>%
+  #filter(season  %in% c (1,2,3,4))%>%
+  ggplot(aes(engagement))+geom_histogram()+
+  scale_x_log10(labels = scales::comma_format())+
+  labs(x = 'Engagement ratings per episode on log scale',
+       y= '',
+       title = 'Engagement distribution on log scale')
+
+scoobydoo %>% 
+  mutate(imdb = as.numeric(imdb),
+         engagement = as.numeric(engagement))%>%
+  filter(!is.na(imdb))%>%
+  group_by(format)%>%
+  summarise(n= n(), avg_rating = mean(imdb),avg_eng = mean(engagement),
+            max_rating = max(imdb),max_eng = max(engagement))%>%
+  mutate(format = fct_reorder(format,avg_rating))%>%
+  ggplot(aes(avg_rating,format,label = max_rating))+geom_col()+geom_text(hjust = -2)+
+  xlim(0,10)+
+  labs(x = 'IMDB Rating',
+       y= 'Show format',
+       title = 'Average IMDB rating and max rating across show formats')
+
+
+scoobydoo %>% 
+  mutate(date_aired = as.Date(date_aired))%>%
+  mutate(year = year(date_aired))%>%
+  group_by(year,format)%>%
+  summarise(n=n())%>%
+  ggplot(aes(year,n,fill=format))+geom_col()+
+  labs(x = 'Year',
+       y= 'No of episodes',
+       title = 'No of releases per year on different formats',
+       fill ='Format')
+
+scoobydoo %>% 
+  mutate(date_aired = as.Date(date_aired),
+         imdb = as.numeric(imdb))%>%
+  mutate(year = year(date_aired))%>%
+  group_by(year,format)%>%
+  summarise(avg_rating = mean(imdb))%>%
+  ggplot(aes(year,avg_rating,color=format))+geom_line()+
+  labs(x = 'Year',
+       y= 'Average IMDB rating',
+       title = 'Average IMDB ratings per year on different formats',
+       fill ='Format')
+
+
+scoobydoo %>% 
+  count(monster_type)
+
+```
