@@ -40,11 +40,12 @@ scoobydoo %>%
 
 scoobydoo %>% 
   mutate(imdb = as.numeric(imdb))%>%
-  filter(season  %in% c (1,2,3,4))%>%
-  ggplot(aes(imdb))+geom_histogram()+
+  filter(season  %in% c (1,2,3,4),monster_real !='NULL')%>%
+  ggplot(aes(imdb,fill=monster_real))+geom_histogram(alpha=0.5)+
   labs(x = 'IMDB ratings per episode',
        y= '',
-       title = 'IMDB ratings per episode / movie')
+       title = 'IMDB ratings per episode / movie',
+       fill= 'Monster real ?')
 
 
 
@@ -97,6 +98,14 @@ scoobydoo %>%
 
 
 scoobydoo %>% 
-  count(monster_type)
+  mutate(date_aired = as.Date(date_aired))%>%
+  mutate(year = year(date_aired))%>%
+  filter(monster_real != 'NULL')%>%
+  count(year,monster_real)%>%
+  ggplot(aes(year,n,fill=monster_real))+geom_col()+
+  labs(x= 'Year',
+       y = 'No of episodes',
+       title = 'Year wise number of episodes with Real and Fake monsters',
+       fill = 'Monster real ?')
 
 ```

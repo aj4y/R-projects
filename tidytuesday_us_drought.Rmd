@@ -1,0 +1,66 @@
+---
+title: "tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidytuesdayR)
+library(tidyverse)
+library(lubridate)
+
+
+tt <-  tidytuesdayR::tt_load('2021-07-20')
+tt
+
+drought <- tt$drought
+
+
+
+drought %>% 
+  mutate(year =year(valid_start),
+         area_pct = area_pct/100)%>%
+  group_by(year,drought_lvl)%>%
+  summarise(avg_lvl = mean(area_pct))%>%
+  filter(!(drought_lvl %in% c('None','D0')))%>%
+  ggplot(aes(year,avg_lvl,fill=drought_lvl))+geom_col()+
+  scale_y_continuous(labels = scales::percent_format())+
+  labs(x = 'Year',
+       y = 'Average area under drought in the year',
+       title ='Area under drought each year, except D0-Abnormally dry')
+  
+
+
+drought %>% 
+  filter(drought_lvl !='None')%>%
+  ggplot(aes(x=area_pct))+geom_histogram(alpha = 0.5,position = 'identity')+facet_wrap(~drought_lvl)+
+  scale_x_log10(labels = scales::comma_format())+
+  labs(x = 'Area percentage',
+       y = '',
+       title = 'Distribution of area for each Drought level',
+       subtitle = 'Max area is under D0-abnormally dry level')
+  
+
+
+
+drought %>% 
+  mutate(year =year(valid_start))%>%
+  group_by(state_abb,year,drought_lvl)%>%
+  summarise(avg_lvl = mean(area_pct))%>%
+  filter(state_abb == 'AK', !(drought_lvl %in% c('None','D0')))%>%
+  ggplot(aes(year,avg_lvl,fill=drought_lvl))+geom_col()+
+  labs(x = 'Year',
+       y = 'Average area under drought in the year',
+       title ='Area under drought each year, except D0-Abnormally dry')
+  
+
+
+
+drought %>% 
+  view()
+  
+
+```
