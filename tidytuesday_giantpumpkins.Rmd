@@ -1,0 +1,49 @@
+---
+title: "Tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r }
+
+library(tidyverse)
+library(tidytuesdayR)
+
+
+tt <- tt_load('2021-10-19')
+
+
+pumpkins <- tt$pumpkins %>%
+  separate(.,id,c('year','type'))%>%
+  filter(!str_detect(country,'Entries'))%>%
+  mutate(weight_lbs = as.numeric(weight_lbs))
+  
+
+pumpkins %>%
+  count(year,type)%>%
+  ggplot(aes(year,n))+geom_col()+facet_wrap(~type)+
+  labs(x = 'Year',
+       y = 'No of entries',
+       title = 'No of entries across years by type')
+
+
+
+pumpkins %>% 
+  filter(!is.na(weight_lbs),type == 'P')%>%
+  group_by(year)%>%
+  summarise(avg_weight = median(weight_lbs),max_weight = max(weight_lbs))%>%
+  ggplot(aes(year,avg_weight))+geom_col()+
+  labs(x='Year',
+       y = 'Median weight of the Pumpkins',
+       title = 'Median weight of Pumpkins across years for Type = P')
+
+
+pumpkins %>% 
+  filter(type == 'P')%>%
+  mutate(country = fct_lump(country,10))%>%
+  mutate(country = fct_reorder(country,.x = weight_lbs,.fun = mean))%>%
+  ggplot(aes(country,weight_lbs))+geom_boxplot()
+
+
+```
