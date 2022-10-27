@@ -1,0 +1,125 @@
+---
+title: "learning_tidymodels"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(tidymodels)
+
+
+
+store_lat_long <- as_tibble(read.csv('~/store_lat_long.csv'))
+points <- store_lat_long %>% select(-Store.code) %>% rename(x1=Lat,x2=long)
+
+kclust <- kmeans(points, centers = 3)
+
+augment(kclust,points) %>% ggplot(aes(x1,x2,color=.cluster))+geom_point()
+
+tidy(kclust)
+
+glance(kclust)
+
+
+kclusts <- 
+  tibble(k=15:25)%>%
+  mutate(
+    kclust = map(k,~kmeans(points,.x)),
+    tidied = map(kclust,tidy),
+    glanced = map(kclust,glance),
+    augmented = map(kclust,augment,points)
+  )
+
+
+kclusts  
+
+clusters <- 
+  kclusts %>% 
+  unnest(cols = c(tidied))
+
+assignments <- 
+  kclusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings <- 
+  kclusts %>% 
+  unnest(cols = c(glanced))
+
+ggplot(assignments,aes(x1,x2,color=.cluster))+geom_point()+facet_wrap(~k)
+
+ggplot(clusterings,aes(k,tot.withinss))+geom_line()+geom_point()
+
+
+
+
+
+```
+
+
+```{r}
+### bootstrapping example 
+
+mtcars %>% 
+  ggplot(aes(wt,mpg))+geom_point()
+mtcars %>% view()
+
+nlsfit <- nls(mpg ~ k / wt + b, mtcars ,start = list(k=1,b=0))
+
+summary(nlsfit)
+
+
+mtcars %>% 
+  ggplot(aes(wt,mpg))+geom_point()+
+  geom_line(aes(y=predict(nlsfit)))
+
+
+predict(nlsfit)
+
+
+
+set.seed(27)
+boots <- bootstraps(mtcars , times = 2000, apparent = T)
+boots
+
+analysis(boots$splits[[1]])
+analysis(boots$splits[[2]])
+assessment(boots$splits[[1]]) %>% count()
+
+
+fit_nls_on_bootstrap <- function(split) {
+  nls(mpg ~k/wt+b,analysis(split),start = list(k=1,b=0))
+}
+
+
+boot_models <- 
+  boots %>% 
+  mutate(model = map(splits, fit_nls_on_bootstrap),
+         coef_info = map(model,tidy))
+
+
+boot_coef <- boot_models %>% 
+  unnest(coef_info)
+
+
+percentile_intervals <- int_pctl(boot_models,coef_info)
+percentile_intervals
+
+boot_coef %>% 
+  ggplot(aes(estimate))+geom_histogram(bins = 30)+facet_wrap(~term,scales = "free")
+
+
+boot_aug <-
+  boot_models %>% 
+  sample_n(200)%>%
+  mutate(augmented = map(model,augment))%>%
+  unnest(augmented)
+
+
+boot_aug %>% 
+  ggplot(aes(wt,mpg))+geom_line(aes(y=.fitted,group=id),alpha=0.2, col='blue')+geom_point()
+
+```
+

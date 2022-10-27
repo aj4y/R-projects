@@ -1,0 +1,74 @@
+---
+title: "Tidytuesday"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tidytuesdayR)
+library(janitor)
+
+
+tt <- tidytuesdayR::tt_load('2022-04-12')
+
+tt
+
+fuel_access <- tt$fuel_access%>%
+  clean_names()%>%
+  rename(clean_access_pct=access_to_clean_fuels_and_technologies_for_cooking_percent_of_population)
+
+fuel_access%>%
+  group_by(entity)%>%
+  mutate(remarks = ifelse(any(clean_access_pct>50),'Yes','No'),
+         max_value = max(clean_access_pct))%>%
+  ungroup()%>%
+  mutate(entity = fct_reorder(entity,max_value))%>%
+  filter(remarks =='No')%>%
+  ggplot(aes(year,clean_access_pct))+geom_col()+facet_wrap(~entity)
+  theme(legend.position = 'none')
+  
+
+
+```
+
+
+
+
+````{R}
+
+fuel_gdp <- tt$fuel_gdp%>%
+  clean_names()%>%
+  rename(clean_access_pct=access_to_clean_fuels_and_technologies_for_cooking_percent_of_population)
+
+fuel_gdp%>%
+  filter(!is.na(clean_access_pct))%>%
+  group_by(entity)%>%
+  mutate(remarks = ifelse(any(clean_access_pct>50),'Yes','No'),
+         max_value = max(population_historical_estimates))%>%
+  ungroup()%>%
+  mutate(entity = fct_reorder(entity,max_value))%>%
+  filter(remarks =='No')%>%
+  ggplot(aes(year,clean_access_pct))+geom_col()+facet_wrap(~entity)
+  theme(legend.position = 'none')
+  
+  
+fuel_gdp%>%
+  filter(!is.na(clean_access_pct))%>%
+  ggplot(aes(year,population_historical_estimates))+geom_col()+
+  scale_y_continuous(labels =  scales::comma)
+
+
+fuel_gdp%>%
+  filter(!is.na(clean_access_pct))%>%
+  view()
+
+
+````
+
+
+
+

@@ -1,0 +1,66 @@
+---
+title: "kaggle_airbnb"
+output: html_document
+date: "2022-09-13"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tidymodels)
+library(janitor)
+
+set.seed(123)
+
+data <- read.csv('AB_NYC_2019.csv')%>%
+  mutate(price_per_night = price / minimum_nights)
+
+
+split <- initial_split(data,0.75)
+
+train <- training(split)
+test <- testing(split)
+
+
+train %>% 
+  glimpse()
+
+train %>% 
+  ggplot(aes(latitude,longitude,color=price_per_night))+geom_point()
+
+
+train %>% 
+  count(neighbourhood, sort = T)
+
+train %>% 
+  ggplot(aes(price_per_night))+geom_histogram()+
+  scale_x_log10()+facet_wrap(~neighbourhood_group)
+
+
+
+train %>% 
+  mutate(neighbourhood_group = fct_reorder(neighbourhood_group,price))%>%
+  ggplot(aes(price,neighbourhood_group))+geom_boxplot()+
+  scale_x_log10()
+
+train %>% 
+  mutate(neighbourhood = fct_lump(neighbourhood,40),
+    neighbourhood = fct_reorder(neighbourhood,price))%>%
+  ggplot(aes(price,neighbourhood,fill = neighbourhood_group))+geom_boxplot()+
+  scale_x_log10()
+
+
+train %>% 
+  ggplot(aes(number_of_reviews))+geom_histogram()+
+  facet_wrap(~neighbourhood_group)
+
+train %>% 
+  filter(number_of_reviews >100)
+
+
+```
+
+
