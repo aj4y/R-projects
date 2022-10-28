@@ -34,6 +34,8 @@ chocolate
 Exploratory data analysis (EDA)
 1. Ratings is in steps of 0.25 points, not really a continuous variable
 2. Words like coca, sweet, nutty , fruit, roasty are most commonly used while describing the choclate taste
+3. Country of bean origin has an impact on mean rating , but there is also huge variation
+4. specific_bean_origin_or_bar_name also has an impact on mean rating
 
 ```{r}
 
@@ -43,10 +45,39 @@ chocolate %>%
 chocolate_tokenized <- chocolate %>% 
   unnest_tokens(word,most_memorable_characteristics)
 
-chocolate_tokenized%>%
-  count(word,sort = T)
+chocolate%>%
+  count(country_of_bean_origin)%>%view()
+
+chocolate %>%
+  mutate(cocoa_percent = parse_number(cocoa_percent))%>%
+  ggplot(aes(rating,cocoa_percent ))+geom_point()
+
+
+chocolate %>% 
+  group_by(country_of_bean_origin)%>%
+  summarise(max_rating = max(rating),min_rating = min(rating),std_dev =sd(rating),rating=mean(rating))%>%
+  mutate(country_of_bean_origin = fct_reorder(country_of_bean_origin,rating))%>%
+  ggplot(aes(rating,country_of_bean_origin))+geom_errorbarh(aes(xmax=rating + std_dev,xmin=rating-std_dev))+geom_point()+
+  labs(title =  'Mean rating for every country of origin',
+       x = 'Rating',
+       y="")
+
+
+chocolate %>% 
+  mutate(specific_bean_origin_or_bar_name = fct_lump(specific_bean_origin_or_bar_name,50))%>%
+  group_by(specific_bean_origin_or_bar_name)%>%
+  summarise(max_rating = max(rating),min_rating = min(rating),std_dev =sd(rating),rating=mean(rating))%>%
+  mutate(specific_bean_origin_or_bar_name = fct_reorder(specific_bean_origin_or_bar_name,rating))%>%
+  ggplot(aes(rating,specific_bean_origin_or_bar_name))+geom_errorbarh(aes(xmax=rating + std_dev,xmin=rating-std_dev))+geom_point()+
+  labs(title =  'Mean rating for top 50 specific_bean_origin_or_bar_name',
+       x = 'Rating',
+       y="")
+
+
+
 
 ```
+
 
 
 3. Words like cocoa, fruit, creamy, cherry, cardamom, cranberry, cinnamon, blackberry, balanced etc are correlated with high ratings of the chocolates. And pastey, chemical, cardboard,rubber, strong, bitter, metaletc are associated with lower ratings.
@@ -95,18 +126,24 @@ library(textrecipes)
 
 
 choco_recipe <- 
-  recipe( rating ~ most_memorable_characteristics, data = choco_train) %>%
+  recipe( rating ~ most_memorable_characteristics+cocoa_percent , data = choco_train) %>%
   step_tokenize(most_memorable_characteristics)%>%
   step_tokenfilter(most_memorable_characteristics,max_tokens = 100)%>%
-  step_tf(most_memorable_characteristics)
+  step_tf(most_memorable_characteristics)%>%
+  step_integer(cocoa_percent)%>%
+  step_normalize(cocoa_percent)
+  #step_other(country_of_bean_origin,threshold = 10)%>%
+  #step_other(specific_bean_origin_or_bar_name, threshold = 10)%>%
+  #step_dummy(all_nominal_predictors())
   
-prep(choco_recipe) %>% bake(new_data=NULL)
+prep(choco_recipe) %>% bake(new_data=NULL)%>%
+  view()
 
 ```
 
 
 Let's create a [**model specification**](https://www.tmwr.org/models.html) for each model we want to try:
-1. Lets fit a random-forest model on the data using the ranger enginte
+1. Lets fit a random-forest and svm model on the data using the ranger enginte
 
 ```{r}
 ranger_spec <-
@@ -161,7 +198,7 @@ svm_rs <- fit_resamples(
   control = contrl_preds
 )
 
-ranger_rs$.predictions
+ ranger_rs$.predictions
 
 svm_rs
 
@@ -188,6 +225,12 @@ bind_rows(
 )%>%
   ggplot(aes(rating,.pred,color=id))+geom_jitter()+
   facet_wrap(~model)
+
+
+collect_predictions(svm_rs)%>%
+  ggplot(aes(rating,.pred,color=id))+geom_jitter()
+
+
   
 
 ```
@@ -196,7 +239,7 @@ bind_rows(
 Final model , final_fitted object contains the final workflow that we can use for prediction later
 
 ```{r}
-final_fitted <- last_fit(svm_wf,choco_split)
+final_fitted <- last_fit(ranger_wf,choco_split)
 collect_metrics(final_fitted)
 
 final_wf <- extract_workflow(final_fitted)
@@ -207,8 +250,8 @@ extract_workflow(final_fitted)%>%
   tidy()%>%
   filter(term !='Bias')%>%
   group_by(estimate>0)%>%
-  slice_max(abs(estimate),n=10)%>%
-  mutate(term=str_remove(term,"tf_most_memorable_characteristics_"))%>%
+  slice_max(abs(estimate),n=20)%>%
+  #mutate(term=str_remove(term,"tf_most_memorable_characteristics_"))%>%
   mutate(term = fct_reorder(term,estimate))%>%
   ggplot(aes(estimate,term,fill=estimate>0))+geom_col()
 
@@ -216,5 +259,5 @@ extract_workflow(final_fitted)%>%
 ```
 
 
-
+Surprisingly, Cocoa percentage has very low to minimal impact on the ratings
 
