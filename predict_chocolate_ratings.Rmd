@@ -239,7 +239,7 @@ collect_predictions(svm_rs)%>%
 Final model , final_fitted object contains the final workflow that we can use for prediction later
 
 ```{r}
-final_fitted <- last_fit(ranger_wf,choco_split)
+final_fitted <- last_fit(svm_wf,choco_split)
 collect_metrics(final_fitted)
 
 final_wf <- extract_workflow(final_fitted)
@@ -251,7 +251,7 @@ extract_workflow(final_fitted)%>%
   filter(term !='Bias')%>%
   group_by(estimate>0)%>%
   slice_max(abs(estimate),n=20)%>%
-  #mutate(term=str_remove(term,"tf_most_memorable_characteristics_"))%>%
+  mutate(term=str_remove(term,"tf_most_memorable_characteristics_"))%>%
   mutate(term = fct_reorder(term,estimate))%>%
   ggplot(aes(estimate,term,fill=estimate>0))+geom_col()
 

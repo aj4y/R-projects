@@ -16,7 +16,9 @@ library(janitor)
 set.seed(123)
 
 data <- read.csv('AB_NYC_2019.csv')%>%
+  mutate(price = log(price+1))%>%
   mutate(price_per_night = price / minimum_nights)
+  
 
 
 split <- initial_split(data,0.75)
@@ -37,28 +39,39 @@ train %>%
 
 train %>% 
   ggplot(aes(price_per_night))+geom_histogram()+
-  scale_x_log10()+facet_wrap(~neighbourhood_group)
+  facet_wrap(~neighbourhood_group)
 
 
 
 train %>% 
   mutate(neighbourhood_group = fct_reorder(neighbourhood_group,price))%>%
-  ggplot(aes(price,neighbourhood_group))+geom_boxplot()+
-  scale_x_log10()
+  ggplot(aes(price,neighbourhood_group))+geom_boxplot()
 
 train %>% 
   mutate(neighbourhood = fct_lump(neighbourhood,40),
     neighbourhood = fct_reorder(neighbourhood,price))%>%
-  ggplot(aes(price,neighbourhood,fill = neighbourhood_group))+geom_boxplot()+
-  scale_x_log10()
+  ggplot(aes(price,neighbourhood,fill = neighbourhood_group))+geom_boxplot()
 
 
 train %>% 
   ggplot(aes(number_of_reviews))+geom_histogram()+
   facet_wrap(~neighbourhood_group)
 
+
 train %>% 
-  filter(number_of_reviews >100)
+  mutate(room_type = fct_reorder(room_type,price))%>%
+  ggplot(aes(price,room_type))+geom_boxplot()
+
+
+train%>% 
+  mutate(minimum_nights = pmin(minimum_nights,14))%>%
+  ggplot(aes(minimum_nights,price,group = minimum_nights))+geom_boxplot()
+
+train %>% 
+  ggplot(aes(minimum_nights,price))+
+  geom_point()+
+  scale_x_log10()+
+  geom_smooth(method = 'lm')
 
 
 ```

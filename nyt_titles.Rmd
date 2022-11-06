@@ -1,0 +1,169 @@
+---
+title: "Train and evaluate models with tidymodels"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 8, fig.height = 5)
+```
+
+
+
+```{r}
+library(tidymodels)
+tuesdata <- tidytuesdayR::tt_load('2022-05-10')
+
+nyt_titles <- tuesdata$nyt_titles
+nyt_full <- tuesdata$nyt_full
+
+```
+
+
+## Explore data
+
+Exploratory data analysis (EDA) is an [important part of the modeling process](https://www.tmwr.org/software-modeling.html#model-phases).
+
+```{r}
+nyt_titles%>%
+  glimpse()
+
+
+#this is full data, we will used only cleaned data here on
+nyt_full %>% 
+  view()
+
+nyt_titles %>% 
+  count(author)
+
+
+nyt_titles %>% 
+  ggplot(aes(total_weeks))+geom_histogram()
+
+nyt_titles %>% 
+  group_by(author)%>%
+  summarise(n=n(),total_weeks = mean(total_weeks))%>%
+  arrange(desc(n))
+
+
+```
+
+
+## Build models
+
+Let's consider how to [spend our data budget](https://www.tmwr.org/splitting.html):
+
+- create training and testing sets
+- create resampling folds from the *training* set
+
+```{r}
+set.seed(123)
+
+book_split<- nyt_titles %>% 
+  transmute(author,total_weeks=if_else(total_weeks>4,'long','short'))%>%
+  na.omit()%>%
+  initial_split(strata = total_weeks)
+
+train<-training(book_split)
+test <- testing(book_split)
+
+book_folds <- vfold_cv(train,strata = total_weeks)
+book_folds
+
+
+```
+
+Let's create a [**model specification**](https://www.tmwr.org/models.html) for each model we want to try:
+
+```{r}
+library(textrecipes)
+
+book_rec <- recipe(total_weeks ~ author, data = train)%>%
+  step_tokenize_wordpiece(author,max_chars = 10)%>%
+  step_tokenfilter(author, max_tokens = 100)%>%
+  step_tf(author)%>%
+  step_normalize(all_numeric_predictors())
+
+
+prep(book_rec)%>%bake(new_data=NULL)%>%
+  view()
+
+
+```
+
+To set up your modeling code, consider using the [parsnip addin](https://parsnip.tidymodels.org/reference/parsnip_addin.html) or the [usemodels](https://usemodels.tidymodels.org/) package.
+
+Now let's build a [**model workflow**](https://www.tmwr.org/workflows.html) combining each model specification with a data preprocessor:
+
+```{r}
+
+book_svm_spec <- svm_linear(mode='classification')
+
+book_wf <- workflow(book_rec,book_svm_spec)
+
+book_wf
+```
+
+If your feature engineering needs are more complex than provided by a formula like `sex ~ .`, use a [recipe](https://www.tidymodels.org/start/recipes/). [Read more about feature engineering with recipes](https://www.tmwr.org/recipes.html) to learn how they work.
+
+
+## Evaluate models
+
+These models have no tuning parameters so we can evaluate them as they are. [Learn about tuning hyperparameters here.](https://www.tidymodels.org/start/tuning/)
+
+```{r}
+contrl_preds <- control_resamples(save_pred = TRUE)
+
+book_metrics <- metric_set(accuracy,sens,spec)
+book_rs <- fit_resamples(book_wf,resamples = book_folds,metrics = book_metrics)
+
+
+
+
+```
+
+How did these two models compare?
+
+```{r}
+
+collect_metrics(book_rs)
+
+```
+
+We can visualize these results using an ROC curve (or a confusion matrix via `conf_mat()`):
+
+```{r}
+final_rs <- last_fit(book_wf, book_split, metrics = book_metrics)
+collect_metrics(final_rs)
+
+
+collect_predictions(final_rs)%>%
+  conf_mat(total_weeks,.pred_class)%>%
+  autoplot()
+
+```
+
+These models perform very similarly, so perhaps we would choose the simpler, linear model. The function `last_fit()` *fits* one final time on the training data and *evaluates* on the testing data. This is the first time we have used the testing data.
+
+```{r}
+
+final_fitted <- extract_workflow(final_rs)
+
+final_fitted %>% 
+  tidy()%>%
+  slice_max(abs(estimate),n=20)%>%
+  mutate(term=fct_reorder(term,estimate))%>%
+  ggplot(aes(x = estimate,y=term,fill=estimate>0))+geom_col()
+
+
+```
+
+This object contains a fitted workflow that we can use for prediction.
+
+```{r}
+
+```
+
+You can save this fitted `final_wf` object to use later with new data, for example with `readr::write_rds()`.
