@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidymodels)
 library(janitor)
+library(doParallel)
 
 set.seed(123)
 
@@ -31,6 +32,7 @@ train %>%
   glimpse()
 
 train %>% 
+  group_by(latitude = round(latitude, 2),longitude = round(longitude,2))%>%
   ggplot(aes(latitude,longitude,color=price_per_night))+geom_point()
 
 
@@ -76,4 +78,86 @@ train %>%
 
 ```
 
+Jump into xgboost
+
+
+```{r}
+
+#define metric set for evaluation
+mset <- metric_set(rmse)
+
+# define control params for the model
+grid_control <- control_grid(save_pred = TRUE,
+                             save_workflow =  TRUE,
+                             extract = extract_model)
+
+
+set.seed(2021)
+train_fold5 <- train %>% 
+  vfold_cv(5)
+
+
+```
+
+
+```{r}
+# define recipe 
+
+registerDoParallel(6)
+
+xg_rec <- recipe (price ~ minimum_nights + room_type + number_of_reviews + 
+                    latitude + longitude + neighbourhood_group + reviews_per_month +
+                    calculated_host_listings_count + availability_365, data = train)%>%
+  #step_log(all_numeric_predictors())%>%
+  step_dummy(all_nominal_predictors())
+
+
+xg_mod <- boost_tree('regression',
+                     mtry = tune(),
+                     trees = tune(),
+                     learn_rate = 0.01)%>%
+  set_engine('xgboost')
+
+xg_wf <- workflow()%>%
+  add_recipe(xg_rec)%>%
+  add_model(xg_mod)
+
+
+xg_tune <- xg_wf %>%
+  tune_grid(train_fold5,
+            metrics = mset,
+            grid = crossing(mtry = c(6,7,8),trees = seq(50,750,50)))
+
+autoplot(xg_tune)
+
+xg_tune %>% 
+  collect_metrics()%>%
+  arrange(mean)
+
+```
+
+
+
+```{r}
+xg_fit <- xg_wf %>%
+  finalize_workflow(select_best(xg_tune))%>%
+  fit(train)
+
+
+xg_fit %>% 
+  augment(test)%>%
+  rmse(price,.pred)
+
+
+importance <- xgboost::xgb.importance(model= xg_fit$fit$fit$fit)
+
+importance %>%
+  mutate(Feature = fct_reorder(Feature,Gain))%>%
+  ggplot(aes(Gain,Feature))+geom_col()
+
+```
+
+
+1. Final model gives RMSE of .445 , pretty good for first attempt. 
+Inspired by D. Rob - https://www.youtube.com/watch?v=17BUk_mslKQ&t=3209s&ab_channel=DavidRobinson
 
