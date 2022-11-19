@@ -1,0 +1,226 @@
+---
+title: "predicting_boardgame_ratings"
+output: html_document
+date: "2022-11-17"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+library(tidyverse)
+library(tidymodels)
+library(doParallel)
+library(textrecipes)
+
+doParallel::registerDoParallel(cores = 4)
+
+data <- read.csv('C:/Users/delhivery/Documents/R-projects/sliced-s01e01/train.csv') %>%
+  unite(categories, starts_with('category'),na.rm=TRUE)
+
+
+hold_out <- read.csv('C:/Users/delhivery/Documents/R-projects/sliced-s01e01/test.csv')%>%
+  unite(categories, starts_with('category'),na.rm=TRUE)
+
+set.seed(123)
+split_data <- initial_split(data,.prop=0.8)
+train <- training(split_data)
+test <- testing(split_data)
+
+
+```
+
+### EDA 
+
+```{r}
+
+train %>% 
+  glimpse()
+
+  
+train %>% 
+  skimr::skim()
+
+train %>%
+ggplot(aes(geek_rating))+geom_histogram()
+
+
+train %>% 
+  ggplot(aes(num_votes,geek_rating))+
+  eom_point()
+
+
+train %>% 
+  ggplot(aes(owned,geek_rating))+
+  geom_point()
+  
+train %>% 
+  mutate(voter_prop = num_votes / owned)%>%
+  ggplot(aes(voter_prop,geek_rating))+
+  geom_point()
+
+train %>% 
+  ggplot(aes(owned,num_votes ))+
+  geom_point()
+
+  
+sd(train$geek_rating) ## 0.48
+
+
+```
+
+
+```{r}
+
+mset <- metric_set(rmse)
+
+train_fold <- train %>% 
+  vfold_cv(10)
+
+
+lin_spec <- linear_reg()%>%
+  set_engine('lm')
+
+
+lin_recipe <- recipe(geek_rating ~ owned + avg_time + num_votes + 
+                       min_players+ max_players + year +
+                       mechanic + categories +designer, data = train )%>%
+  step_log(owned,num_votes,avg_time,base = 2, offset = 1)%>%
+  step_mutate(max_players = pmin(max_players,100))%>%
+  step_ns(year,deg_free = 5)%>%
+  step_tokenize(mechanic,designer,categories,token = 'regex',options = list(pattern =', '))%>%
+  step_tokenfilter(mechanic,designer,max_tokens = 20)%>%
+  step_tf(mechanic,designer,categories)
+
+
+# lin_recipe %>%
+#   prep()%>%
+#   bake(new_data = NULL)%>%
+#   view()
+
+
+lin_wf <- workflow()%>%
+  add_recipe(lin_recipe) %>%
+  add_model(lin_spec)
+
+
+# cv_fit <- lin_wf %>%
+#   tune_grid(train_fold,
+#             grid = crossing(deg_free=1:10),
+#             metrcis = mset)
+
+cv_fit <- lin_wf %>%
+  fit_resamples(train_fold)
+
+
+cv_fit %>% 
+  collect_metrics()%>%
+  arrange(mean)
+
+
+
+```
+
+
+Trying glmnet model
+
+```{r}
+
+glm_spec <- linear_reg(penalty = tune())%>%
+  set_engine('glmnet')
+
+
+glm_recipe <- recipe(geek_rating ~ owned + avg_time + num_votes + 
+                       min_players+ max_players + year +
+                       mechanic + categories + designer, data = train )%>%
+  step_log(owned,num_votes,avg_time,base = 2, offset = 1)%>%
+  step_mutate(max_players = pmin(max_players,100))%>%
+  step_ns(year,deg_free = 5)%>%
+  step_tokenize(mechanic,designer,categories,token = 'regex',options = list(pattern =', '))%>%
+  step_tokenfilter(designer,max_tokens = 100)%>%
+  step_tf(mechanic,designer,categories)
+
+
+glm_recipe %>%
+  prep()%>%
+  bake(new_data = NULL)%>%
+  view()
+
+glm_wf <- workflow()%>%
+  add_recipe(glm_recipe) %>%
+  add_model(glm_spec)
+
+
+glm_cv_fit <- glm_wf %>%
+  tune_grid(train_fold,
+            grid = crossing(penalty=seq(0.00001,0.1,0.0001)),
+            metrics = mset)
+
+# glm_cv_fit <- glm_wf %>%
+#   fit_resamples(train_fold)
+
+glm_cv_fit %>% 
+  autoplot()
+
+
+glm_cv_fit %>% 
+  collect_metrics()%>%
+  arrange(mean)
+
+
+
+```
+
+#### Random forest model 
+
+
+```{r}
+
+rf_spec <- rand_forest(mtry = tune(),trees = tune())%>%
+  set_mode('regression')%>%
+  set_engine('ranger')
+
+
+
+rf_recipe <- recipe(geek_rating ~ owned + avg_time + num_votes + 
+                       min_players+ max_players + year + age +
+                       mechanic + categories + designer, data = train )%>%
+  #step_log(owned,num_votes,avg_time,base = 2, offset = 1)%>% not needed in RF 
+  #step_mutate(max_players = pmin(max_players,100))%>%
+  #step_ns(year,deg_free = 5)%>%
+  step_tokenize(mechanic,designer,categories,token = 'regex',options = list(pattern =', '))%>%
+  step_tokenfilter(mechanic,designer,categories,max_tokens = 10)%>%
+  step_tf(mechanic,designer,categories)
+
+
+rf_wf <- workflow()%>%
+  add_recipe(rf_recipe)%>%
+  add_model(rf_spec)
+
+
+rf_fit <- rf_wf%>%
+  tune_grid(train_fold,
+                    grid = crossing(trees = 500,
+                                    mtry =30),
+                    metrics = mset)
+
+rf_fit %>% autoplot()
+
+rf_fit %>% 
+  collect_metrics()%>%
+  arrange(mean)
+
+### fit best model on entire train set and test on test set
+
+rf_wf %>% 
+  finalize_workflow(list(trees =500, mtry=30))%>%
+  last_fit(split_data)%>%
+  collect_metrics()
+
+
+```
+
