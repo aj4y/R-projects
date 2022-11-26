@@ -1,0 +1,855 @@
+---
+title: "Introduction to ML"
+output: html_document
+date: "2022-11-21"
+editor_options: 
+  chunk_output_type: console
+---
+
+This RMD doc tries to capture learnings from the "Introduction to Applied Machine Learning" course by JJ Curtin.
+Based on the book - http://dionysus.psych.wisc.edu/iaml/
+
+Unit 1 - Overview of ML 
+- Types of ML models
+  - Supervised vs Un-supervised 
+  - typical issues - Over fitting vs under fitting or Variance vs Bias 
+  - ML problem solving framework    
+  
+Unit 2 - EDA
+  What are the stages of data analysis and ML model development 
+  1. EDA : cleaning full data 
+  2. EDA : Data split into Train, CV and test
+  3. EDA : modelling on training sets
+  4. Model building : feature engg
+  5. Model building : fit many models on training set 
+  6. Model building : evaluate models on validation set 
+  7. Final model evaluation : select final / best model 
+  8. Final model evaluation : Evaluate model on test set 
+
+For the course, we will be using Ames housing data set for housing price prediction 
+Data link - https://dionysus.psych.wisc.edu/iaml/homework/unit_2/ames_raw_class.csv
+
+
+```{r setup, include=FALSE}
+
+## Loading all necessary libraries and reading the data 
+
+library(tidymodels)
+library(tidyverse)
+library(janitor)
+library(skimr)
+library(purrr)
+library(cowplot)
+library(modeldata)
+library(tidyquant)
+
+
+data_all <- read.csv('~/R-projects/ames_raw_class.csv')
+
+data_all %>% 
+  glimpse()
+
+# Data has a lot of variables, we will use limited set of columns for further study
+
+data_all <- data_all %>% 
+  select(SalePrice,Gr.Liv.Area,Lot.Area,Year.Built,Overall.Qual,Garage.Cars,Garage.Qual,MS.Zoning,Lot.Config,Bldg.Type) 
+data_all %>% 
+  glimpse()
+```
+
+EDA - Important step to understand data 
+- It is critical to split data into Training, Validation and Test sets 
+- Care should be takeb to prevent any data leakage i.e. Validation / test sets should not be used for modelling but only for testing/ model evaluations 
+- 
+
+
+```{r}
+# Tidy the variable names 
+data_all <- data_all %>% 
+  clean_names()
+
+data_all %>% 
+  names()
+
+
+# Explore variable classes. e.g overall_qual is a 'dbl' but in reality its a factor / character class variable
+
+data_all<- data_all %>% 
+  mutate(overall_qual = as.character(overall_qual))
+
+data_all %>% 
+  glimpse()
+
+data_all %>% 
+  skim()
+
+# There are NAs in "garage_qual', as per data dictionary, these should be coded as 'no_garage'
+
+data_all %>% 
+  filter(is.na(garage_qual))
+ 
+data_all <- 
+  data_all %>% 
+  mutate(garage_qual= replace_na(garage_qual,'no_garage'))
+
+
+# explore all responses of categorical variable. Good opportunity to create a function here 
+
+categorical_responses <- function(name,column) {
+  
+  unique(column)%>% 
+    na.omit()%>%
+    str_c(collapse = ', ')%>%
+    str_c(name," : ",.,"\n")%>%
+    cat()
+}
+
+
+data_all %>% 
+  select(where(is.character))%>%
+  walk2(.x=names(.),
+        .y = .,
+        .f = categorical_responses)
+
+
+# Tidy the responses of categorical variables. This will help later when we have to create new features, as they will also be snake-cased. This is also a good opportunity to write a re-usable function 
+
+tidy_categorical_responses <- function(column){
+  column <-factor(column)
+  levels(column)<-make_clean_names(levels(column))
+  as.character(column)
+}
+
+data_all <- 
+  data_all %>% 
+  mutate(across(where(is.character) & !all_of('overall_qual'),tidy_categorical_responses))
+
+
+# of the responses are not chosen well and hence are not convinient to read. We can manually change them using recode function
+
+data_all <-
+  data_all %>% 
+  mutate(ms_zoning=recode(ms_zoning,c_all='c',a_agr='a',i_all='i'),
+         bldg_type = recode(bldg_type, x1fam='one_fam',twnsh_e='twhs_ext',
+                            twnhs='twhs_int',x2fm_con='two_fam'))
+
+
+# The data looks clean now 
+
+
+```
+
+
+# Splitting data into train,validation and test sets
+1. Test sets are typically 20-25% of the data 
+2. Validation set- 
+- there are many approaches to validation e.g. single set, resampling - cross_fold cv etc. 
+- validation is typically 25% of the data 
+3. Remaining data is train 
+
+It is recommended to split the data on the Outcome variable within strata
+
+```{r}
+
+set.seed(1234)
+#Here we are splitting data into two sets, train and test. The test set will be used as validation set as a separate data set is kept on hold for final testing / model evaluation purpose 
+
+data_split <- data_all %>% 
+  initial_split(prop = 3/4, strata = 'sale_price',breaks=4)
+
+data_train <- analysis(data_split) # gives out the train data frame 
+data_test <- assessment(data_split) # gives out the test(validation in this case) data frame 
+
+```
+
+
+# Recipe package is used for data transformation needed for modeling. Transforming raw predictors into features requried as input to the model 
+- Recipes use data only from training set to in feature engg 
+- Prepping recipe ( prep() ), is used to calcualte required stats for transformation. e.g. SD in case we want to do normalization
+- Baking the recipe ( bake() ), is used to bake new data with the prepped recipe 
+- proper use of recipes is critical to prevent data leakage. e.g. SD / Mean from training should be used to normalize validation / test data 
+
+
+```{r}
+
+rec <- recipe(sale_price ~ ., data = data_train)%>%
+  step_string2factor(all_of(c('ms_zoning','lot_config','bldg_type')))%>%
+  step_string2factor(garage_qual,ordered = T,levels = c('no_garage','po','fa','ta','gd','ex'))
+  #step_num2factor(overall_qual, ordered = T, levels = as.character(1:10))
+
+rec
+  
+summary(rec)
+
+
+create_feature_matrix <- function(rec,prep_data,bake_data){
+  rec %>% 
+    prep(training = prep_data,string_as_factors = FALSE)%>%
+    bake(new_data = bake_data)%>%
+    glimpse()
+}
+
+data_train_features <- rec %>% 
+  create_feature_matrix(data_train,data_train)
+
+
+
+```
+
+
+# Modelling EDA 
+Three basic steps for modellign EDA 
+1. Explore missing predictor values and figure imputation as required 
+2. Explore univariate distributions of outcome and predictors 
+3. Explore bi-variate relations between outcome and predictors
+
+This will allow us to 
+1. Identify promising/redundant predictors 
+2. Identify outliers 
+3. identify feature engg required 
+
+```{r}
+
+
+# Categorical variables- best visualised by a bar / col plot. Good opportunity to write a function !!
+# Coding tip - good to use quoted arguments , they work well with map / walk functions. always have data as the first argument so that piping becomes easy 
+
+bar_plot_categorical <- function(data,x){
+  
+  data %>%
+    ggplot(aes(x=.data[[x]]))+
+             geom_bar()
+}
+
+#plot mulitple variables using cowplot :: plot_grid
+
+data_train_features %>% 
+  select(where(is.factor))%>%
+  names()%>%
+  map(~bar_plot_categorical(x=.x,data = data_train_features))%>%
+  plot_grid(plotlist = .,ncol=2)
+  
+#'tabyl' function from janitor package , gives frequency distribution of categorical variables 
+
+data_train_features %>% 
+  select(where(is.factor))%>%
+  map(tabyl)
+
+
+
+# For numerical variables, histograms are used to explore the data . Good opportunity to create a function ! 
+
+histogram_numeric <- function(data , x , bins = 30) {
+  data %>%
+    ggplot(aes(x = .data[[x]]))+
+    geom_histogram(bins = bins)
+}
+
+data_train_features %>% 
+  histogram_numeric('sale_price',bins=100)
+
+
+# Box plot and violon plots are also a good way to see numerical data. Opportunity for another function !!!
+
+box_violin_numeric <- function(data,x){
+  
+  data %>% 
+    ggplot(aes(x = .data[[x]]))+
+    geom_violin(aes(y=0),fill='green',alpha=0.5)+
+    geom_boxplot(width=0.1)
+}
+
+data_train_features %>% 
+  select(where(is.numeric))%>%
+  names()%>%
+  map(~box_violin_numeric(data=data_train_features,x=.x))%>% # here .x is the column name of the list output given by names()
+  plot_grid(plotlist = .,ncol=2)
+
+
+
+# Bivariate relationships with outcome 
+
+scatter_plot <- function (data,x,y){
+  
+  data %>%
+    ggplot(aes(x=.data[[x]],y=.data[[y]]))+
+    geom_point()+
+    geom_smooth(method = 'loess')
+}
+
+
+data_train_features %>% 
+  mutate(sale_price = log(sale_price))%>%
+  scatter_plot('gr_liv_area','sale_price')
+
+data_train_features %>% 
+  mutate(sale_price = log(sale_price))%>%
+  scatter_plot('year_built','sale_price')
+
+
+# If we have an over-plotting problem, because of lot of data points, we can use geom_hex 
+library(hexbin)
+
+hex_plot <- function (data,x,y){
+  data %>% 
+    ggplot(aes(x =.data[[x]],y =.data[[y]]))+
+    geom_hex()+
+    geom_smooth(method ='loess')
+}
+
+data_train_features %>% 
+  mutate(sale_price = log(sale_price)) %>%
+  hex_plot('gr_liv_area','sale_price')
+
+
+## Correlation plots for all numeric predictors 
+
+library(corrplot)
+
+data_train_features %>% 
+  mutate(overall_qual = as.numeric(overall_qual),garage_qual=as.numeric(garage_qual))%>%
+  select(where(is.numeric))%>% 
+  cor(use = "pairwise.complete.obs")%>%
+  corrplot()
+
+
+# visualizing categorical + numeric variables using grouped box + violin plots
+
+grouped_box_violin <- function(data,x,y){
+  
+  data %>% 
+    ggplot(aes(x=.data[[x]],y=.data[[y]]))+
+    geom_violin(fill='green',alpha=0.5,color=NA)+
+    geom_boxplot(width=0.1, fill=NA, lwd=1.1, flatten=1.1)
+}
+
+data_train_features %>%
+  grouped_box_violin('overall_qual','sale_price')
+
+data_train_features %>%
+  grouped_box_violin('bldg_type','sale_price')
+
+
+# Combining for categorical + numeric
+
+plot_categorical <- function (data,x,y){
+  
+  p_bar<-
+    data %>% 
+    ggplot(aes(x=.data[[x]]))+
+    geom_bar()
+  
+  p_box_violin <- 
+    data %>% 
+    ggplot(aes(x=.data[[x]],y=.data[[y]]))+
+    geom_violin(fill='green',alpha=0.5,color=NA)+
+    geom_boxplot(width=0.1, fill=NA, lwd=1.1, flatten=1.1)
+  
+  return(list(p_bar,p_box_violin))
+}
+
+data_train_features %>% 
+  plot_categorical('bldg_type','sale_price')%>%
+  plot_grid(plotlist = .,ncol=1)
+
+
+# Visualizing two categorical variables with stacked bar plots 
+
+plot_grouped_barplot <- function(data,x,y){
+  
+  data %>% 
+    ggplot(aes(x=.data[[x]],fill=.data[[y]]))+
+    geom_bar(position = 'stack')
+}
+
+data_train_features %>%
+  plot_grouped_barplot('bldg_type','lot_config')
+
+#tile plot can also be used 
+
+data_train_features %>% 
+  count(overall_qual,garage_qual)%>%
+  ggplot(aes(overall_qual,garage_qual))+
+  geom_tile(aes(fill=n))
+
+
+# or scatterplot with jitter also looks cool , works when factor levels are ordered / define properly
+
+data_train_features %>% 
+  mutate(overall_qual=jitter(as.numeric(overall_qual)),garage_qual = jitter(as.numeric(garage_qual)))%>% 
+  scatter_plot('overall_qual','garage_qual')
+  
+
+
+```
+
+
+# Unit 3 - Intro to regression models
+
+Goal - build a General linear regression model to predict 'sale_price'
+We will use the tidymodels framework for thie exercize 
+typical steps 
+ - set up a recipe for feature engg 
+ - use the recipe to bake a feature matrix 
+ - select and define the algo that we will use 
+ - fit the algo on the training data
+ - evaluate the algo on the test / validation data 
+
+```{r}
+
+data_train %>% glimpse()
+data_test %>% glimpse()
+
+# create a data frame to track the performance of various models that we will evaluate 
+
+error_val <- tibble(model= character(),rmse_val = numeric())
+
+
+glm_rec <- recipe(sale_price ~ ., data = data_train)
+summary(glm_rec)
+
+
+# Selecting and defining an algo has 2 parts. First - specify the broad category i.e. linear_reg(), nearest_neighbor(),logistic_reg (). Second - select a specific base R package (engine) that will implement the algo e.g. lm, knn, glm,glmnet and third is to select mode i.e. regression or classification for the engine
+
+show_engines('linear_reg')
+show_engines('nearest_neighbor')
+show_engines('decision_tree')
+show_engines('mlp')
+
+
+linear_reg(penalty = 0.1)%>%
+  set_engine('glmnet')%>%
+  translate()
+
+# I am using the workflow construct here, which is not used in the original book. Just for practice ! :)
+
+# First model using only one predictor - gr_liv_area
+
+glm_rec <- recipe(sale_price ~ gr_liv_area, data = data_train)
+
+glm_mod <- linear_reg()%>% 
+  set_engine('lm')%>%
+  set_mode('regression')
+
+summary(glm_mod)
+
+glm_wf <- workflow()%>%
+  add_recipe(glm_rec)%>%
+  add_model(glm_mod)
+
+summary(glm_wf)
+
+glm_fit_1 <- fit(glm_wf,data=data_train)
+glm_fit_1 %>% tidy() %>% pull(estimate)
+
+
+# Good opportunity to write a function to pull out the estimate
+
+get_estimate <- function(model_fit, model_term){
+  model_fit %>% 
+    tidy()%>%
+    filter(term==model_term)%>%
+    pull(estimate)
+}
+
+glm_fit_1 %>% get_estimate(.,'gr_liv_area')
+
+
+# For prediction, we can use predict function or augment function as below 
+
+plot_glm_1 <-
+data_test %>% 
+  select(sale_price)%>%
+  cbind(predict(glm_fit_1,new_data = data_test))%>%
+  ggplot(aes(sale_price,.pred))+geom_point()+
+  geom_abline()+
+  coord_obs_pred()
+
+
+glm_fit_1 %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)
+
+# Add the rmse metric to our comparison table 
+error_val <- 
+  bind_rows(error_val,tibble(model = 'simple linear model with gr_liv_area as predictor',
+                             rmse_val = glm_fit_1 %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)))
+
+
+```
+
+- There is a positive relationship between gr_liv_area and sale_price
+- The dat fans out , indicating we positive skew and probable heteroscadicity. This can be corrected with a log transformation 
+
+Model 2- lets expand the model with mulitple predictors lot_area, year_built and garage_cars 
+
+
+```{r}
+
+# Model 2 
+
+data_train %>% 
+  count(garage_cars) # there is one NA, we will use imputation for this in the recipe
+
+glm_rec_2 <- recipe(sale_price ~ gr_liv_area + lot_area + year_built + garage_cars, data = data_train)%>%
+  step_impute_median(garage_cars)
+
+glm_mod_2 <- linear_reg()%>% 
+  set_engine('lm')%>%
+  set_mode('regression')
+
+summary(glm_mod_2)
+
+glm_wf_2 <- workflow()%>%
+  add_recipe(glm_rec_2)%>%
+  add_model(glm_mod_2)
+
+summary(glm_wf_2)
+
+glm_fit_2 <- fit(glm_wf_2,data=data_train)
+glm_fit_2 %>% tidy()
+
+
+# Good opportunity to write a function to pull out the estimate
+
+get_estimate <- function(model_fit, model_term){
+  model_fit %>% 
+    tidy()%>%
+    filter(term==model_term)%>%
+    pull(estimate)
+}
+
+glm_fit_2 %>% get_estimate(.,'gr_liv_area')
+
+
+# For prediction, we can use predict function or augment function as below 
+
+plot_glm_2 <- 
+  data_test %>% 
+  select(sale_price)%>%
+  cbind(predict(glm_fit_2,new_data = data_test))%>%
+  ggplot(aes(sale_price,.pred))+geom_point()+
+  geom_abline()+
+  coord_obs_pred()
+
+plot_grid(plot_glm_1,plot_glm_2,
+          labels =list('1 Feature','4 Features'))
+
+glm_fit_2 %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)
+
+# Add the rmse metric to our comparison table 
+error_val <- 
+  bind_rows(error_val,tibble(model = 'simple linear model with 4 predictors',
+                             rmse_val = glm_fit_2 %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)))
+
+
+# Lets try normalisation on the features using YeoJohnson method 
+
+
+glm_rec_2yj <- recipe(sale_price ~ gr_liv_area + lot_area + year_built + garage_cars, data = data_train)%>%
+  step_impute_median(garage_cars)%>%
+  step_YeoJohnson(all_predictors())
+
+glm_mod_2yj <- linear_reg()%>% 
+  set_engine('lm')%>%
+  set_mode('regression')
+
+summary(glm_mod_2yj)
+
+glm_wf_2yj <- workflow()%>%
+  add_recipe(glm_rec_2yj)%>%
+  add_model(glm_mod_2yj)
+
+summary(glm_wf_2yj)
+
+glm_fit_2yj <- fit(glm_wf_2yj,data=data_train)
+glm_fit_2yj %>% tidy()
+
+#glm_fit_2yj %>% get_estimate(.,'gr_liv_area')
+
+
+# For prediction, we can use predict function or augment function as below 
+
+plot_glm_2yj <- 
+  data_test %>% 
+  select(sale_price)%>%
+  cbind(predict(glm_fit_2,new_data = data_test))%>%
+  ggplot(aes(sale_price,.pred))+geom_point()+
+  geom_abline()+
+  coord_obs_pred()
+
+plot_grid(plot_glm_1,plot_glm_2,plot_glm_2yj,
+          labels =list('1 Feature','4 Features','4 Features with YJ'),hjust = -1.5)
+
+glm_fit_2yj %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)
+
+# Add the rmse metric to our comparison table 
+error_val <- 
+  bind_rows(error_val,tibble(model = 'simple linear model with 4 predictors & YJ',
+                             rmse_val = glm_fit_2yj %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)))
+
+### Adding categorical variables - ms_zoning 
+
+glm_rec_cat <- recipe(sale_price ~ gr_liv_area + lot_area + year_built + garage_cars + ms_zoning, data = data_train)%>%
+  step_impute_median(garage_cars)%>%
+  step_YeoJohnson(all_numeric_predictors())%>%
+  step_mutate(ms_zoning = recode(.x = ms_zoning,
+                                 c = 'commercial',
+                                 i = 'commercial',
+                                 a = 'commercial',
+                                 rh = 'residential',
+                                 rl = 'residential',
+                                 rm = 'residential'))%>%
+  step_string2factor(ms_zoning)%>%
+  step_dummy(ms_zoning)
+
+glm_mod_cat <- linear_reg()%>% 
+  set_engine('lm')%>%
+  set_mode('regression')
+
+summary(glm_mod_cat)
+
+glm_wf_cat <- workflow()%>%
+  add_recipe(glm_rec_cat)%>%
+  add_model(glm_mod_cat)
+
+summary(glm_wf_cat)
+
+glm_fit_cat <- fit(glm_wf_cat,data=data_train)
+glm_fit_cat %>% tidy()
+
+#glm_fit_2yj %>% get_estimate(.,'gr_liv_area')
+
+
+# For prediction, we can use predict function or augment function as below 
+
+plot_glm_cat <- 
+  data_test %>% 
+  select(sale_price)%>%
+  cbind(predict(glm_fit_cat,new_data = data_test))%>%
+  ggplot(aes(sale_price,.pred))+geom_point()+
+  geom_abline()+
+  coord_obs_pred()
+
+plot_grid(plot_glm_1,plot_glm_2,plot_glm_2yj, plot_glm_cat,
+          labels =list('1 Feature','4 Features','4 Features with YJ','4 Features and 1 cat'))
+
+glm_fit_cat %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)
+
+# Add the rmse metric to our comparison table 
+error_val <- 
+  bind_rows(error_val,tibble(model = 'simple linear model with 4 predictors & cat',
+                             rmse_val = glm_fit_cat %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate))) ## the performance actually got worse with this :P 
+
+
+#### Lets try with overall_qual, we can treat this as numeric since this is an ordered factor 
+
+glm_rec_3 <- recipe(sale_price ~ gr_liv_area + lot_area + year_built + garage_cars + overall_qual, data = data_train)%>%
+  step_impute_median(garage_cars)%>%
+  step_mutate(overall_qual = as.numeric(overall_qual))%>%
+  step_YeoJohnson(all_numeric_predictors())
+  
+
+glm_mod_3 <- linear_reg()%>% 
+  set_engine('lm')%>%
+  set_mode('regression')
+
+summary(glm_mod_3)
+
+glm_wf_3 <- workflow()%>%
+  add_recipe(glm_rec_3)%>%
+  add_model(glm_mod_3)
+
+summary(glm_wf_3)
+
+glm_fit_3 <- fit(glm_wf_3,data=data_train)
+glm_fit_3 %>% tidy()
+
+#glm_fit_2yj %>% get_estimate(.,'gr_liv_area')
+
+
+# For prediction, we can use predict function or augment function as below 
+
+plot_glm_3 <- 
+  data_test %>% 
+  select(sale_price)%>%
+  cbind(predict(glm_fit_3,new_data = data_test))%>%
+  ggplot(aes(sale_price,.pred))+geom_point()+
+  geom_abline()+
+  coord_obs_pred()
+
+plot_grid(plot_glm_1,plot_glm_2,plot_glm_2yj, plot_glm_cat,plot_glm_3,
+          labels =list('1 Feature','4 Features','4 Features with YJ','4 Features and 1 cat','4 features + overall_qual'))
+
+glm_fit_3 %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)
+
+# Add the rmse metric to our comparison table 
+error_val <- 
+  bind_rows(error_val,tibble(model = 'simple linear model with 4 predictors & overall_qaul',
+                             rmse_val = glm_fit_3 %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate))) ## this helped a lot, phew !
+
+
+```
+
+
+## Interaction elements 
+- There could be interactions between predictors
+- some models i.e. linear reg cannot handle this
+- hence it is important to create interactions terms in our recipe 
+
+
+```{r}
+
+
+glm_rec_interact <- 
+  recipe(sale_price ~ gr_liv_area + lot_area + year_built + garage_cars + overall_qual, data = data_train)%>%
+  step_impute_median(garage_cars)%>%
+  step_mutate(overall_qual = as.numeric(overall_qual))%>%
+  step_YeoJohnson(all_numeric_predictors())%>%
+  step_interact(~overall_qual:year_built)
+  
+
+glm_mod_interact<- linear_reg()%>% 
+  set_engine('lm')%>%
+  set_mode('regression')
+
+summary(glm_mod_interact)
+
+glm_wf_interact <- workflow()%>%
+  add_recipe(glm_rec_interact)%>%
+  add_model(glm_mod_interact)
+
+summary(glm_wf_interact)
+
+glm_fit_interact <- fit(glm_wf_interact,data=data_train)
+glm_fit_interact %>% tidy()
+
+#glm_fit_2yj %>% get_estimate(.,'gr_liv_area')
+
+
+# For prediction, we can use predict function or augment function as below 
+
+plot_glm_interact <- 
+  data_test %>% 
+  select(sale_price)%>%
+  cbind(predict(glm_fit_interact,new_data = data_test))%>%
+  ggplot(aes(sale_price,.pred))+geom_point()+
+  geom_abline()+
+  coord_obs_pred()
+
+plot_grid(plot_glm_1,plot_glm_2,plot_glm_2yj, plot_glm_cat,plot_glm_3, plot_glm_interact,
+          labels =list('1 Feature','4 Features','4 Features with YJ','4 Features and 1 cat','4 features + overall_qual','with interaction'))
+
+glm_fit_interact %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)
+
+# Add the rmse metric to our comparison table 
+error_val <- 
+  bind_rows(error_val,tibble(model = 'simple linear model with 4 predictors & overall_qaul with interaction',
+                             rmse_val = glm_fit_interact %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate))) ## marginal improvement 
+
+
+
+### lets add more interaction terms with ms_zoning as well
+
+glm_rec_interact_2 <- 
+  recipe(sale_price ~ gr_liv_area + lot_area + year_built + garage_cars + overall_qual + ms_zoning, data = data_train)%>%
+  step_impute_median(garage_cars)%>%
+  step_mutate(overall_qual = as.numeric(overall_qual))%>%
+  step_YeoJohnson(all_numeric_predictors())%>%
+  step_mutate(ms_zoning = recode(.x = ms_zoning,
+                                 c = 'commercial',
+                                 i = 'commercial',
+                                 a = 'commercial',
+                                 rh = 'residential',
+                                 rl = 'residential',
+                                 rm = 'residential'))%>%
+  step_string2factor(ms_zoning)%>%
+  step_dummy(ms_zoning)%>%
+  step_interact(~overall_qual:year_built)%>%
+  step_interact(~starts_with('ms_zoning'):year_built)
+  
+
+glm_mod_interact_2<- linear_reg()%>% 
+  set_engine('lm')%>%
+  set_mode('regression')
+
+summary(glm_mod_interact_2)
+
+glm_wf_interact_2 <- workflow()%>%
+  add_recipe(glm_rec_interact_2)%>%
+  add_model(glm_mod_interact_2)
+
+summary(glm_wf_interact_2)
+
+glm_fit_interact_2 <- fit(glm_wf_interact_2,data=data_train)
+glm_fit_interact_2 %>% tidy()
+
+#glm_fit_2yj %>% get_estimate(.,'gr_liv_area')
+
+
+# For prediction, we can use predict function or augment function as below 
+
+plot_glm_interact_2 <- 
+  data_test %>% 
+  select(sale_price)%>%
+  cbind(predict(glm_fit_interact_2,new_data = data_test))%>%
+  ggplot(aes(sale_price,.pred))+geom_point()+
+  geom_abline()+
+  coord_obs_pred()
+
+plot_grid(plot_glm_1,plot_glm_2,plot_glm_2yj, plot_glm_cat,plot_glm_3, plot_glm_interact, plot_glm_interact_2,
+          labels =list('1 Feature','4 Features','4 Features with YJ','4 Features and 1 cat','4 features + overall_qual','with interaction','With more interaction'))
+
+glm_fit_interact_2 %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)
+
+# Add the rmse metric to our comparison table 
+error_val <- 
+  bind_rows(error_val,tibble(model = 'simple linear model with 4 predictors & overall_qaul with more interaction',
+                             rmse_val = glm_fit_interact_2 %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate))) ## incremental improvement 
+
+
+
+
+```
+
+
