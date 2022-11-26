@@ -852,4 +852,57 @@ error_val <-
 
 ```
 
+Using KNN algo 
+- feature scaling is critical , as KNN uses distance as a measure 
+
+```{r}
+
+knn_rec <- recipe (sale_price ~ gr_liv_area + lot_area + year_built + garage_cars + overall_qual, data = data_train)%>%
+  step_impute_median(garage_cars)%>%
+  step_mutate(overall_qual = as.numeric(overall_qual))%>%
+  step_range(gr_liv_area,lot_area,year_built,garage_cars,overall_qual)
+
+
+knn_mod <- nearest_neighbor()%>%
+  set_engine('kknn')%>%
+  set_mode('regression')
+
+knn_wf <- workflow()%>%
+  add_recipe(knn_rec)%>%
+  add_model(knn_mod)
+
+
+knn_fit <- fit(knn_wf,data_test)
+
+plot_knn <- 
+  data_test %>% 
+  select(sale_price)%>%
+  cbind(predict(knn_fit,new_data = data_test))%>%
+  ggplot(aes(sale_price,.pred))+geom_point()+
+  geom_abline()+
+  coord_obs_pred()
+
+plot_grid(plot_glm_1,plot_glm_2,plot_glm_2yj, plot_glm_cat,plot_glm_3, plot_glm_interact, plot_glm_interact_2,plot_knn,
+          labels =list('1 Feature','4 Features','4 Features with YJ','4 Features and 1 cat','4 features + overall_qual','with interaction','With more interaction','knn'))
+
+knn_fit %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate)
+
+error_val <- 
+  bind_rows(error_val,tibble(model = 'KNN model',
+                             rmse_val = knn_fit %>% 
+  augment(data_test)%>%
+  rmse(sale_price,.pred)%>%
+  pull(.estimate))) ## massive improvement  
+
+
+# By default the hyperparameter k is set at 5, lets try with other values 
+
+
+
+
+```
+
 
