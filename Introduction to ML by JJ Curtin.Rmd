@@ -906,3 +906,107 @@ error_val <-
 ```
 
 
+### Unit 4 - Logistic regression 
+Primary objective of logistics regression is solving for classification type problems 
+
+
+```{r}
+# Lets take example with cars data, we will try to predict mpg - High / Low
+
+cars_data <- read.csv('~/R-projects/cars.csv')
+
+cars_data %>% skim_tee()
+
+cars_data <- 
+  cars_data %>%
+  mutate(origin = recode(origin,'1'='american','2'='european','3'='japanese'))
+  
+cars_data %>% glimpse()  
+
+cars_data %>% 
+  select(where(is.character))%>%
+  walk2(.x = names(.),
+        .y=.,
+        .f = categorical_responses)
+
+box_violin_numeric(data=cars_data,x='mpg')
+
+# Since mpg data is numeric, lets convert it to High/Low using a threshold of 23 (p50)
+
+cars_data <- 
+  cars_data %>% 
+  mutate(mpg = ifelse(mpg>23,'high','low'))%>%
+  mutate(mpg=ifelse(is.na(mpg),'low',mpg))
+
+# lets split the data 75/25 with mpg as the strat
+set.seed(12345)
+
+cars_split <- initial_split(cars_data,prop = 3/4,strata = mpg)
+
+cars_train <- training(cars_split)
+cars_test <- testing(cars_split)
+
+# setup a recipe for pre-processing 
+
+cars_rec <- recipe(mpg ~ ., data = cars_train)%>%
+  step_rm(name)%>% # remove name column as we dont know how to use it,  yet !
+  step_string2factor(mpg,levels = c('low','high'))%>%
+  step_string2factor(origin)
+
+cars_features <- cars_rec %>% prep()%>% bake(new_data = NULL)
+
+## lets do some EDA 
+
+cars_train %>% 
+  bar_plot_categorical(data = .,x='mpg') # the mpg variable looks balanced 
+
+
+cars_train %>% 
+  select(where(is.numeric))%>%
+  names()%>%
+  map(~grouped_box_violin(data=cars_train,x = 'mpg',y=.x))%>%
+  plot_grid(plotlist = .,ncol = 2)
+
+plot_grouped_barplot(data = cars_train,x='mpg', y='origin')
+
+# cylinders, displacement, horsepower , weight are all related features, higher values correspond to big beefy car
+# Lets modify the recipe 
+cars_rec <- recipe(mpg ~ ., data = cars_train)%>%
+  step_rm(name,origin,acceleration)%>% # remove name column as we dont know how to use it,  yet !
+  step_string2factor(mpg,skip=TRUE)%>% # using SKIP is important, as it wil skip this transformation during prediction
+  step_impute_median(horsepower)%>%
+  step_pca(cylinders, displacement, horsepower , weight, options = list(center = TRUE, scale.=TRUE),num_comp = 1,prefix = 'beef_')
+
+#cars_rec %>% prep()%>% bake(new_data = cars_train)
+
+# define model 
+cars_mod_lr <- logistic_reg()%>%
+  set_engine('glm')%>%
+  set_mode('classification')
+  
+# define wf 
+cars_wf <- workflow() %>%
+  add_model(cars_mod_lr)%>%
+  add_recipe(cars_rec)
+
+#fit model
+cars_fit <- fit(cars_wf,cars_train)
+cars_fit %>% tidy()
+
+cars_test %>% 
+  mutate(mpg=as.factor(mpg))%>%
+  cbind(predict(cars_fit, new_data = cars_test))%>%
+  conf_mat(data=.,truth=mpg,estimate=.pred_class) %>%
+  autoplot()
+
+
+cars_test %>% 
+  mutate(mpg=as.factor(mpg))%>%
+  cbind(predict(cars_fit, new_data = cars_test))%>%
+  accuracy(data=.,truth=mpg,estimate=.pred_class)
+
+
+```
+
+
+
