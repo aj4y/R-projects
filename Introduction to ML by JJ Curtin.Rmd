@@ -125,7 +125,7 @@ data_all <-
   mutate(across(where(is.character) & !all_of('overall_qual'),tidy_categorical_responses))
 
 
-# of the responses are not chosen well and hence are not convinient to read. We can manually change them using recode function
+# of the responses are not chosen well and hence are not convenient to read. We can manually change them using recode function
 
 data_all <-
   data_all %>% 
@@ -977,7 +977,8 @@ cars_rec <- recipe(mpg ~ ., data = cars_train)%>%
   step_impute_median(horsepower)%>%
   step_pca(cylinders, displacement, horsepower , weight, options = list(center = TRUE, scale.=TRUE),num_comp = 1,prefix = 'beef_')
 
-#cars_rec %>% prep()%>% bake(new_data = cars_train)
+cars_train_features <- cars_rec %>% prep()%>% bake(new_data = cars_train)
+cars_test_features <- cars_rec %>% prep()%>% bake(new_data = cars_test)
 
 # define model 
 cars_mod_lr <- logistic_reg()%>%
@@ -1004,6 +1005,186 @@ cars_test %>%
   mutate(mpg=as.factor(mpg))%>%
   cbind(predict(cars_fit, new_data = cars_test))%>%
   accuracy(data=.,truth=mpg,estimate=.pred_class)
+
+cars_train %>% 
+  ggplot(aes(x=displacement,y=acceleration,z=horsepower))+geom_contour()
+
+as.numeric( predict(cars_fit, new_data = cars_test)[[1]] ) -1
+
+## Coding challenge - create a function to plot decision boundary using tidymodels 
+
+
+create_grid_range <- function (x,data){
+  
+  data <- data %>% na.omit()
+  return(  seq(min(data[[x]]),max(data[[x]]),length = 10) )
+}
+
+cars_test %>% 
+  select(where(is.numeric))%>%
+  names()%>%
+  map(~create_grid_range(x=.x,data=cars_test)) -> cars_grid
+
+temp_grid <- cars_grid[[1]]
+for (i in 2:length(cars_grid)){
+  
+  temp_grid <- crossing(temp_grid,cars_grid[[i]])
+  
+}
+
+crossing(cars_grid[[1]],cars_grid[[2]])
+
+
+```
+
+
+KNN- K Nearest Neighbours 
+
+
+
+```{r}
+
+# Setup recipe for pre-processing 
+
+cars_rec_knn <- recipe(mpg ~ ., data = cars_train)%>%
+  step_rm(name,origin,acceleration)%>% # remove name column as we dont know how to use it,  yet !
+  step_string2factor(mpg,skip=TRUE)%>% # using SKIP is important, as it wil skip this transformation during prediction
+  step_impute_median(horsepower)%>%
+  step_pca(cylinders, displacement, horsepower , weight, options = list(center = TRUE, scale.=TRUE),num_comp = 1,prefix = 'beef_')
+
+
+# define model
+cars_mod_knn <- nearest_neighbor(neighbors = 20)%>%
+  set_engine('kknn')%>%
+  set_mode('classification')
+
+# define workflow 
+cars_wf_knn <- workflow()%>%
+  add_recipe(cars_rec_knn)%>%
+  add_model(cars_mod_knn)
+
+#fit the model
+
+fit_knn <- fit(cars_wf_knn,data = cars_train)
+
+#fit_knn %>% tidy()
+
+
+cars_test %>% 
+  mutate(mpg=as.factor(mpg))%>%
+  cbind(predict(fit_knn, new_data = cars_test))%>%
+  conf_mat(data=.,truth=mpg,estimate=.pred_class) %>%
+  autoplot()
+
+
+cars_test %>% 
+  mutate(mpg=as.factor(mpg))%>%
+  cbind(predict(fit_knn, new_data = cars_test))%>%
+  accuracy(data=.,truth=mpg,estimate=.pred_class)
+
+
+```
+
+
+```{r}
+library(mlbench)
+set.seed(20140102)
+
+circle_train <- as_tibble(mlbench.circle(200))%>%
+  rename(x_1 = x.1,x_2=x.2)%>%
+  glimpse()
+
+circle_test <- as_tibble(mlbench.circle(200))%>%
+  rename(x_1 = x.1,x_2=x.2)%>%
+  glimpse()
+  
+
+circle_train %>% 
+  ggplot(aes(x=x_1,y=x_2,color = classes))+
+  geom_point(size = 2, alpha=0.5)
+
+
+# define recipe 
+
+circle_rec <- recipe(classes ~ x_1 + x_2 , data = circle_train)
+  
+  
+#define model 
+circle_mod <- logistic_reg() %>% 
+  set_engine('glm')%>%
+  set_mode('classification')
+
+
+# define workflow 
+
+circle_wf <- workflow() %>% 
+  add_model(circle_mod)%>%
+  add_recipe(circle_rec)
+  
+
+# fit model 
+circle_fit <- fit(circle_wf, data= circle_train)
+circle_fit %>% tidy()
+
+
+
+circle_test %>% 
+  cbind(predict(circle_fit, new_data = circle_test))%>%
+  accuracy(data=.,truth=classes,estimate=.pred_class)
+
+```
+
+
+#Unit 5 - Resampling methods for Model evaluation 
+
+Resampling methods are used for 
+1. Select / evaluate across models 
+2. Evaluate performance of models in new data 
+
+If resampling is not done correctly , we can have two issues 
+1. Biased estimate - 
+2. Imprecise estimate 
+
+i.e. Bias or variance with respect to the estimate of how the model will perform ( not the actual performance of model i.e. Prediction vs actual observed value)
+
+
+
+
+
+```{r}
+
+clev_data <- read.csv('~/R-projects/heart_failure_clinical_records_dataset.csv')
+
+# recode some of the categorical variables with meaningful factor labels 
+
+clev_data <-
+  clev_data %>%
+  mutate(anaemia = ifelse(anaemia == 0,'no','yes'),
+         diabetes= ifelse(diabetes == 0,'no','yes'),
+         sex= ifelse(sex == 0,'female','male'),
+         high_blood_pressure= ifelse(high_blood_pressure == 0,'no','yes'),
+         diabetes= ifelse(diabetes == 0,'no','yes'),
+         high_blood_pressure= ifelse(high_blood_pressure == 0,'no','yes'),
+         smoking= ifelse(smoking == 0,'no','yes'),
+         DEATH_EVENT= ifelse(DEATH_EVENT == 0,'no','yes'))
+
+clev_data %>%
+  skimr::skim()
+
+
+
+
+##### Logistics regression model #### 
+
+clev_log_rec <- recipe(DEATH_EVENT ~., data = clev_data)%>%
+  step_string2factor(DEATH_EVENT, levels = c('no','yes'))%>%
+  step_string2factor(all_nominal_predictors(),-all_outcomes())%>%
+  step_dummy(all_nominal_predictors(),-all_outcomes())
+
+summary(clev_log_rec)
+
+
+
 
 
 ```

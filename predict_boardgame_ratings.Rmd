@@ -1,8 +1,9 @@
 ---
 title: "predicting_boardgame_ratings"
-output: html_document
+output:
+  pdf_document: default
 date: "2022-11-17"
-editor_options: 
+editor_options:
   chunk_output_type: console
 ---
 
@@ -17,7 +18,7 @@ library(tidymodels)
 library(doParallel)
 library(textrecipes)
 
-doParallel::registerDoParallel(cores = 4)
+#doParallel::registerDoParallel(cores = 4)
 
 data <- read.csv('C:/Users/delhivery/Documents/R-projects/sliced-s01e01/train.csv') %>%
   unite(categories, starts_with('category'),na.rm=TRUE)
@@ -51,7 +52,7 @@ ggplot(aes(geek_rating))+geom_histogram()
 
 train %>% 
   ggplot(aes(num_votes,geek_rating))+
-  eom_point()
+  geom_point()
 
 
 train %>% 
