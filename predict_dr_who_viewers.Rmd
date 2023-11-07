@@ -72,14 +72,14 @@ episodes_joined %>%
   group_by(writer)%>%
   summarise(n=n(),mean_rating=mean(rating),max_rating = max(rating),min_rating = min(rating))%>%
   mutate(writer = fct_reorder(writer,mean_rating))%>%
-  ggplot(aes(mean_rating,writer))+geom_errorbarh(aes(xmax = max_rating,xmin = min_rating))
+  ggplot(aes(mean_rating,writer))+geom_point()+geom_errorbarh(aes(xmax = max_rating,xmin = min_rating))
 
 
 episodes_joined %>% 
   group_by(director)%>%
   summarise(n=n(),mean_rating=mean(rating),max_rating = max(rating),min_rating = min(rating))%>%
   mutate(director = fct_reorder(director,mean_rating))%>%
-  ggplot(aes(mean_rating,director))+geom_errorbarh(aes(xmax = max_rating,xmin = min_rating))
+  ggplot(aes(mean_rating,director))+geom_point()+geom_errorbarh(aes(xmax = max_rating,xmin = min_rating))
 
 
 episodes_joined %>% 
