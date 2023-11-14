@@ -1,0 +1,157 @@
+---
+title: "tidymodels_lin-reg_1"
+output: html_document
+date: "2023-11-14"
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(tidymodels)
+library(GGally)
+
+# Read the data 
+
+ecom_customers <- read_csv("c:/Users/delhivery/Documents/R-projects/Ecommerce Customers.csv")%>%
+  clean_names()
+
+
+
+ecom_customers%>%
+  glimpse()
+
+
+```
+
+
+## Lets explore the data first 
+- all numerical variables seem to be normally distributed 
+- lenght of membership seems to be highly correlated with yearly amount spent. Seems obvious as loyal customers would tend to send more 
+- Apart from this, time spent on app & avg session lenght also has a higher correlation with amount spent as compared to time spent on website 
+- yearly_amount_spent across different avatars seems have no predictive power 
+- we can use all numerical predictors to build our model 
+
+
+
+
+```{r}
+
+ecom_customers %>% 
+  skimr::skim()
+
+ggpairs(ecom_customers %>% select(avg_session_length,time_on_app,time_on_website,length_of_membership,yearly_amount_spent))
+
+
+ecom_customers %>% 
+  group_by(avatar)%>%
+  summarise(total_spend = sum(yearly_amount_spent))%>%
+  arrange(-total_spend)%>%
+  ggplot(aes(total_spend))+geom_histogram()
+
+
+
+```
+
+
+## Building the model 
+
+1. Create splits, we will also build a cross fold validation 
+
+```{r}
+set.seed(1234)
+
+ecom_split <- initial_split(ecom_customers,strata = yearly_amount_spent)
+ecom_train <- training(ecom_split)
+ecom_test <- testing(ecom_split)
+
+ecom_folds <- vfold_cv(ecom_train)
+ecom_folds
+
+
+
+```
+
+
+2. Build model specification and workflow 
+- lets build a simple linear regression model workflow 
+
+```{r}
+
+# create recipe 
+
+ecom_rec <- 
+  recipe(yearly_amount_spent ~ avg_session_length + time_on_app + time_on_website + length_of_membership , data = ecom_train)
+
+ecom_spec <- 
+  linear_reg()%>%
+  set_engine("lm")
+
+
+ecom_wf <- 
+  workflow()%>%
+  add_recipe(ecom_rec)%>%
+  add_model(ecom_spec)
+
+```
+
+
+3. Fit the model 
+
+```{r}
+
+control_preds <- control_resamples(save_pred = TRUE)
+
+ecom_results <- 
+  fit_resamples(ecom_wf,
+                resamples = ecom_folds,
+                control = control_preds)
+
+
+
+
+
+```
+
+4. Collect and analyze metrics 
+- Model seems robust across all cross folds
+
+```{r}
+
+ecom_results%>%
+  select(.predictions,id)%>%
+  unnest()%>%
+  ggplot(aes(.pred,yearly_amount_spent,color = id))+geom_line()+
+  labs(title= "Predicted value vs observed value for all cross folds on training set",
+       subtitle = " model results seem robust")
+
+
+collect_metrics(ecom_results)
+
+
+```
+
+5. Final prediction
+- final workflow shows time_on_app has a far greater influence on the amount spent. Tech teams should focus on building app features more than web features and customers should be redirected to app than website
+
+
+```{r}
+
+final_fitted <- last_fit(ecom_wf,ecom_split)
+
+collect_metrics(final_fitted)
+
+final_wf <- extract_workflow(final_fitted)
+
+ecom_test %>%
+  select(yearly_amount_spent)%>%
+  cbind(predict(final_wf, ecom_test, interval = 'confidence'))%>%
+  ggplot(aes(yearly_amount_spent,.pred))+geom_point()+
+  labs(title= ' Final predicted vs observed on test set')
+
+
+
+```
+
