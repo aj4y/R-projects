@@ -85,11 +85,13 @@ ecom_folds
 ecom_rec <- 
   recipe(yearly_amount_spent ~ avg_session_length + time_on_app + time_on_website + length_of_membership , data = ecom_train)
 
+
+# create model specs 
 ecom_spec <- 
   linear_reg()%>%
   set_engine("lm")
 
-
+# create workflow 
 ecom_wf <- 
   workflow()%>%
   add_recipe(ecom_rec)%>%
@@ -102,8 +104,11 @@ ecom_wf <-
 
 ```{r}
 
+# lets save predictions of all cross fold sets to compare later 
 control_preds <- control_resamples(save_pred = TRUE)
 
+
+# fit resamples 
 ecom_results <- 
   fit_resamples(ecom_wf,
                 resamples = ecom_folds,
@@ -120,6 +125,7 @@ ecom_results <-
 
 ```{r}
 
+# test model robustness 
 ecom_results%>%
   select(.predictions,id)%>%
   unnest()%>%
