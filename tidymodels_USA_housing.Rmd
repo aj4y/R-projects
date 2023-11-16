@@ -1,0 +1,135 @@
+---
+title: "tidymodels_usa_housing"
+output: html_document
+date: "2023-11-16"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidymodels)
+library(tidyverse)
+library(janitor)
+library(GGally)
+
+
+usa_housing <- read_csv("c:/Users/delhivery/Documents/R-projects/USA_Housing.csv")%>%
+  clean_names()
+
+
+usa_housing %>%
+  glimpse()
+
+
+usa_housing %>% 
+  skimr::skim()
+
+```
+
+### lets do some EDA first 
+1. Price seems to be normally distributed 
+2. all numerical variables seem to be highly correlated with price, we can try a linear regression model in this case 
+
+```{r}
+
+usa_housing %>% 
+  ggplot(aes(price))+geom_histogram()
+
+
+usa_housing %>% 
+  select(- address)%>%
+  ggpairs()
+
+
+
+```
+
+### Build model
+
+1. Create splits and folds for validation 
+
+```{r}
+set.seed(1234)
+
+usa_split <- initial_split(usa_housing,strata = price)
+usa_training <- training(usa_split)
+usa_testing <- testing(usa_split)
+
+
+usa_folds <- vfold_cv(usa_training)
+usa_folds
+
+```
+
+2. Create recipe and model 
+
+```{r}
+usa_rec <- recipe(price ~ avg_area_income + avg_area_house_age + avg_area_number_of_rooms +
+                    avg_area_number_of_bedrooms +area_population, data = usa_training )
+
+usa_spec <- linear_reg()%>%
+  set_engine("lm")
+
+usa_wf <- workflow()%>% 
+  add_recipe(usa_rec)%>% 
+  add_model(usa_spec)
+
+```
+
+
+3. Fit the model across folds and validate 
+
+
+```{r}
+
+control_preds <- control_resamples(save_pred = TRUE)
+
+usa_fit <- fit_resamples(usa_wf,
+                         resamples = usa_folds,
+                         control = control_preds)
+
+
+usa_fit %>% 
+  collect_metrics()
+
+usa_fit %>% 
+  select(id,.predictions)%>% 
+  unnest()%>% 
+  ggplot(aes(.pred,price,color = id))+geom_point()+
+  labs(title = 'Pred vs observed value for all folds - suggests that model is robust')
+
+```
+
+
+4. Final fit and prediction on testing set
+- Final workflow model suggests that income, number of rooms & bedrooms has high impact on price
+
+```{r}
+
+usa_final_fit <- last_fit(usa_wf, usa_split)
+
+usa_wf_final <- extract_workflow(usa_final_fit)
+
+usa_testing %>% 
+  select(price)%>% 
+  cbind(predict(usa_wf_final,usa_testing,interval = 'confidence'))%>% 
+  ggplot(aes(.pred,price))+geom_point()+
+  labs(title = 'Pred vs observed value for final test set')
+
+
+usa_testing %>% 
+  select(price)%>% 
+  cbind(predict(usa_wf_final,usa_testing,interval = 'confidence'))%>% 
+  mutate(sq_errors = (.pred - price))%>%
+  ggplot(aes(sq_errors))+geom_histogram()+
+  labs(title = " Residual errors are normally distributed")
+
+```
+
+
+
