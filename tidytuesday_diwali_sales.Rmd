@@ -1,0 +1,133 @@
+---
+title: "tidytuesday_diwali_sales"
+output: html_document
+date: "2023-11-16"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+library(janitor)
+
+
+tuesdata <- tidytuesdayR::tt_load('2023-11-14')
+tuesdata
+
+diwali_sales <- tuesdata$diwali_sales_data%>% clean_names()
+
+
+diwali_sales %>% 
+  glimpse()
+
+
+
+
+```
+
+### Lets explore the data first !
+- Amount for 12 of the observations are missing out of 11251, we can ignore these rows 
+- Data gives User - Product ID wise spend , 1250 users bought 2350 products 
+- Central zone has highest number of orders and value as well 
+- UP , MH, Karnataka , Delhi, MP - top 5 states 
+- Food, Apparel, electronics, footware  - top 5 categories 
+- Avg order value is similar across states, but varies greatly with product category 
+- Female spend is higher 
+- Age groups between 18 to 45, spending the maximum online 
+
+
+```{r}
+
+
+diwali_sales %>% 
+  skimr::skim()
+
+diwali_sales <- 
+  diwali_sales %>% 
+  filter(!is.na(amount))
+
+diwali_sales%>% 
+  ggplot(aes(amount))+geom_histogram()+
+  labs(title = "Histogram of the amount spent")
+
+diwali_sales%>% 
+  group_by(zone)%>% 
+  summarise(total_spend = sum(amount ))%>% 
+  mutate(zone = fct_reorder(zone,total_spend))%>% 
+  ggplot(aes(total_spend,zone, fill = zone))+geom_col()+
+  labs ( title = 'Amount spent zone wise')
+
+
+diwali_sales%>% 
+  group_by(zone)%>% 
+  summarise(total_orders = sum(orders ))%>% 
+  mutate(zone = fct_reorder(zone,total_orders))%>% 
+  ggplot(aes(total_orders,zone, fill = zone))+geom_col()+
+  labs ( title = 'Number of orders zone wise')
+
+
+diwali_sales%>% 
+  group_by(zone,state)%>% 
+  summarise(total_spend = sum(amount ))%>% 
+  mutate(state = fct_reorder(state,total_spend))%>% 
+  mutate(zone = fct_reorder(zone,total_spend))%>% 
+  ggplot(aes(total_spend,state, fill = zone))+geom_col()+facet_wrap(~zone,scale = 'free_y')+
+  scale_x_continuous(labels = scales :: comma)+
+  labs ( title = 'Amount spent zone - state wise')
+
+
+diwali_sales%>% 
+  group_by(product_category)%>% 
+  summarise(total_spend = sum(amount ))%>% 
+  mutate(product_category = fct_reorder(product_category,total_spend))%>% 
+  ggplot(aes(total_spend,product_category))+geom_col()+
+  scale_x_continuous(labels = scales :: comma)+
+  labs ( title = 'Amount spent product category wise')
+
+diwali_sales %>% 
+  group_by(gender)%>% 
+  summarise(total_spend = sum(amount ))%>% 
+  mutate(gender = fct_reorder(gender,total_spend))%>% 
+  ggplot(aes(total_spend,gender))+geom_col()+
+  scale_x_continuous(labels = scales :: comma)+
+  labs ( title = 'Amount spent gender wise')
+
+diwali_sales %>% 
+  group_by(age_group)%>% 
+  summarise(total_spend = sum(amount ))%>% 
+  mutate(age_group = fct_reorder(age_group,total_spend))%>% 
+  ggplot(aes(total_spend,age_group))+geom_col()+
+  scale_x_continuous(labels = scales :: comma)+
+  labs ( title = 'Amount spent age_group wise')
+
+diwali_sales %>% 
+  mutate(marital_status = as.factor(marital_status))%>%
+  group_by(marital_status)%>% 
+  summarise(total_spend = sum(amount ))%>% 
+  ggplot(aes(total_spend,marital_status))+geom_col()+
+  scale_x_continuous(labels = scales :: comma)+
+  labs ( title = 'Amount spent marital_status wise')
+
+
+
+## whats the ticket size 
+diwali_sales %>% 
+  mutate(amout_per_order = amount / orders )%>% 
+  ggplot(aes(amout_per_order))+geom_boxplot()+facet_wrap(~zone)
+
+diwali_sales %>% 
+  mutate(amout_per_order = amount / orders )%>% 
+  ggplot(aes(amout_per_order))+geom_boxplot()+facet_wrap(~product_category)
+
+
+
+
+```
+
