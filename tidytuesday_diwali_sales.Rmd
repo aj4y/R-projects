@@ -116,6 +116,15 @@ diwali_sales %>%
   labs ( title = 'Amount spent marital_status wise')
 
 
+diwali_sales %>% 
+  group_by(occupation)%>% 
+  summarise(total_spend = sum(amount ))%>%
+  mutate(occupation = fct_reorder(occupation,total_spend))%>% 
+  ggplot(aes(total_spend,occupation))+geom_col()+
+  scale_x_continuous(labels = scales :: comma)+
+  labs ( title = 'Amount spent occupation wise')
+
+
 
 ## whats the ticket size 
 diwali_sales %>% 
