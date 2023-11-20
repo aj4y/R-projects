@@ -41,7 +41,7 @@ song_train %>%
 
 
 song_train %>% 
-  ggplot(aes(popularity))+geom_histogram()+facet_wrap(~genre)+
+  ggplot(aes(popularity,genre))+geom_boxplot()+
   labs(title = 'Song popularity distribution by genre',
        subtitle = " Good old normal distribution")
 
@@ -133,4 +133,51 @@ song_final_fit %>%
 
 ```
 
+
+5. Some modifications can be done, can use genre variable 
+- genre improves the model a little bit, "Pop" genre has a positive impact
+
+```{r}
+song_rec_gnre <- recipe(popularity ~ song_length + num_instruments + tempo + 
+                     lyrical_content + popularity + genre , data = song_train)%>%
+  step_dummy(all_nominal_predictors())
+
+prep(song_rec_gnre,song_train)
+
+song_wf_genre <- workflow()%>%
+  add_recipe(song_rec_gnre)%>%
+  add_model(song_spec)
+
+
+song_results_genre <- fit_resamples(song_wf_genre,
+                              resamples = song_folds,
+                              control = control_preds)
+
+
+song_results_genre %>% 
+  collect_metrics()
+
+song_results_genre %>%
+  select(id,.predictions)%>%
+  unnest()%>%
+  ggplot(aes(.pred,popularity,color = id))+geom_point()+
+  labs(title = 'Pred vs actual for all folds')
+
+
+song_results_genre %>% 
+  select(id,.metrics)%>%
+  unnest(cols = c(.metrics))%>%
+  ggplot(aes(.estimate,id))+geom_col()+
+  facet_wrap(~.metric)+
+  labs(title = 'Metrics for individual resamples')
+
+
+
+song_final_fit_genre <- fit(song_wf_genre,data = song_train)
+
+song_final_fit_genre %>% 
+  augment(song_test)
+
+
+```
 
