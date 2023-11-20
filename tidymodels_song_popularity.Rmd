@@ -1,0 +1,136 @@
+---
+title: "tidymodels_song_popularity"
+output: html_document
+date: "2023-11-20"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(janitor)
+library(GGally)
+song_train <- read.csv('C:/Users/delhivery/Documents/R-projects/song_popularity/train.csv')%>%
+  clean_names()
+
+song_test <- read.csv('C:/Users/delhivery/Documents/R-projects/song_popularity/test.csv')%>%
+  clean_names()
+
+
+```
+
+### EDA on the data 
+1. No missing values 
+2. 6 types of Genres 
+3. Popularity does not vary much as per genre, we can probably drop this feature 
+4. Popularity does not vary much as per year, we can probably drop this feature 
+5. Other features seem to have strong corelation with popularity, lets try simple lin reg
+
+```{r}
+song_train %>% 
+  glimpse()
+
+song_train %>% 
+  skimr::skim()
+
+
+song_train %>% 
+  ggplot(aes(popularity))+geom_histogram()+facet_wrap(~genre)+
+  labs(title = 'Song popularity distribution by genre',
+       subtitle = " Good old normal distribution")
+
+song_train %>%
+  group_by(genre)%>%
+  summarise(avg_pop= mean(popularity))%>%
+  mutate(genre = fct_reorder(genre, avg_pop))%>%
+  ggplot(aes(avg_pop,genre))+geom_col()+
+  labs(title = "Avg popularity by genre",
+       subtitle = 'Doesnt vary much')
+
+
+song_train %>% 
+  group_by(released_year)%>%
+  summarise(avg_pop= mean(popularity))%>%
+  ggplot(aes(released_year,avg_pop))+geom_col()+
+  labs(title = "Avg popularity by released_year",
+       subtitle = 'slight decline in rating across years')
+  
+ggpairs(song_train %>% select(song_length,num_instruments,tempo,lyrical_content,popularity))
+
+
+
+```
+
+### Build model
+1. Cross fold validation
+
+```{r}
+song_folds <- vfold_cv(song_train)
+song_folds
+
+```
+
+2. Define recipe and model 
+
+```{r}
+song_rec <- recipe(popularity ~ song_length + num_instruments + tempo + 
+                     lyrical_content + popularity , data = song_train)
+
+song_spec <- 
+  linear_reg()%>%
+  set_engine('lm')
+
+song_wf <- workflow()%>%
+  add_recipe(song_rec)%>%
+  add_model(song_spec)
+
+```
+
+3. Fit model and validate across folds
+- Model seems to be robust 
+
+```{r}
+control_preds <- control_resamples(save_pred = TRUE)
+
+song_results <- fit_resamples(song_wf,
+                              resamples = song_folds,
+                              control = control_preds)
+
+song_results %>% 
+  collect_metrics()
+
+song_results %>%
+  select(id,.predictions)%>%
+  unnest()%>%
+  ggplot(aes(.pred,popularity,color = id))+geom_point()+
+  labs(title = 'Pred vs actual for all folds')
+
+
+song_results %>% 
+  select(id,.metrics)%>%
+  unnest(cols = c(.metrics))%>%
+  ggplot(aes(.estimate,id))+geom_col()+
+  facet_wrap(~.metric)+
+  labs(title = 'Metrics for individual resamples')
+
+```
+
+
+4. Final fit and prediction on test 
+
+```{r}
+song_final_fit <- fit(song_wf,data = song_train)
+
+song_final_fit %>% 
+  augment(song_test)
+
+
+```
+
+
