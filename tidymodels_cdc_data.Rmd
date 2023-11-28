@@ -1,0 +1,146 @@
+---
+title: "tidymodels_CDCdata"
+output: html_document
+date: "2023-11-27"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+library(tidymodels)
+library(tidyverse)
+library(janitor)
+library(GGally)
+
+# read the data 
+
+cdc_data <- read_csv("C:/Users/delhivery/Documents/R-projects/Nutrition__Physical_Activity__and_Obesity_-_Behavioral_Risk_Factor_Surveillance_System.csv")%>%
+  clean_names()
+
+cdc_data %>% 
+  glimpse()
+
+
+```
+
+
+### Explore data 
+1. data_value is seems to vary as per question and class / topic , about 5046 values are missing 
+2. data is already stratified based on age, education, income, race etc. can use this column 
+
+
+
+```{r}
+
+cdc_data %>% 
+  skimr::skim()
+
+
+cdc_data %>% 
+  ggplot(aes(data_value,education))+geom_boxplot()
+
+
+cdc_data %>% 
+  count(stratification_category1,stratification1)%>%
+  view()
+```
+
+### clean the data 
+
+```{r}
+
+cdc_cleaned <-  cdc_data %>%
+    filter(stratification1 != 'Total')%>%
+    select(question_id,class_id,location_abbr,stratification_id1,data_value)%>%
+    drop_na()
+
+```
+
+
+### Build a model 
+
+1. Create data splits
+
+```{r}
+
+cdc_split <- initial_split(cdc_cleaned)
+
+cdc_train <- training(cdc_split)
+cdc_test <- testing (cdc_split)
+
+cdc_folds <- vfold_cv(cdc_train)
+
+```
+
+2. Create recipe and model specs
+
+```{r}
+
+cdc_rec <- recipe( data_value ~ .,data = cdc_train)%>%
+  step_dummy(all_nominal_predictors())
+
+cdc_spec <- linear_reg()%>%
+  set_engine('lm')
+
+cdc_wf <- workflow()%>%
+  add_recipe(cdc_rec)%>%
+  add_model(cdc_spec)
+
+
+
+```
+
+
+3. Fit resamples 
+- Model fits nicely 
+- Class and Question have highest impact on the output variables, Location_ID does not matter much. This is interesting as it shows that output is not related to certain geographies 
+
+```{r}
+
+control_preds <- control_resamples(save_pred = TRUE)
+
+cdc_results <- fit_resamples(cdc_wf,
+                             resamples = cdc_folds,
+                             control = control_preds)
+
+cdc_results %>% collect_metrics()
+
+cdc_results%>%
+  select(id,.predictions)%>%
+  unnest(.predictions)%>%
+  ggplot(aes(.pred,data_value,color = id))+geom_point()
+
+
+cdc_final_fitted <- last_fit(cdc_wf,cdc_split)
+
+cdc_final_wf<- extract_workflow(cdc_final_fitted)
+
+
+cdc_final_wf %>% 
+  augment(cdc_test)%>%
+  mutate(residuals = .pred - data_value)%>%
+  ggplot(aes(residuals))+geom_histogram()
+  
+
+cdc_final_wf %>% 
+  tidy()%>%
+  mutate(term = fct_reorder(term,estimate))%>%
+  ggplot(aes(estimate,term,fill = estimate<0))+geom_col()+
+  theme(legend.position = "none")+
+  labs(title = "Featuer importance")
+
+```
+
+
+
+
+
+
+
