@@ -177,7 +177,9 @@ episode_folds_new
 
 
 episode_rec_new <- recipe(rating ~ .,data = episode_train_new)%>%
-  step_rm(season_episode)
+  step_rm(season_episode)%>%
+  step_zv(all_numeric_predictors())%>%
+  step_normalize(all_numeric_predictors())
 
 episode_rec_new %>% prep()%>% bake(new_data = NULL)%>%
   view()
