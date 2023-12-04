@@ -1,0 +1,131 @@
+---
+title: "tidymodels_insurance_cost"
+output: html_document
+date: "2023-12-04"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidymodels)
+library(tidyverse)
+library(janitor)
+
+insurance <- read.csv('insurance.csv') %>% clean_names()
+insurance
+
+```
+
+
+#### EDA on the data 
+1. No missing data, good sign
+2. Smoker status has a clear influence on the insurance cost , rest variable not so significant
+
+```{r}
+
+insurance %>%
+  glimpse()
+
+insurance %>%
+  skimr::skim()
+
+
+insurance <-
+  insurance %>% 
+  mutate(charges = log(charges))
+
+
+insurance %>% 
+  ggplot(aes(charges))+geom_histogram()+facet_wrap(~region)
+
+
+insurance %>% 
+  ggplot(aes(bmi))+geom_histogram()
+
+insurance %>% 
+  count(sex,smoker,region)
+
+
+```
+
+### Build a linear reg model
+1. Create data splits 
+
+```{r}
+insurance_split <- initial_split(insurance, strata = smoker)
+insurance_train <- training(insurance_split)
+insurance_test <- testing(insurance_split)
+
+insurance_train %>% count(smoker)
+insurance_test %>% count(smoker)
+
+insurance_folds <- vfold_cv(insurance_train,strata = smoker)
+
+```
+
+2. Build recipe and model spec
+
+```{r}
+
+insurance_rec <- recipe(charges ~ age+bmi+children+smoker, data = insurance_train)%>%
+  step_dummy(all_nominal_predictors())
+
+insurance_rec %>% prep() %>% bake(new_data = NULL) 
+
+insurance_spec <- linear_reg()%>%
+  set_engine('lm')
+
+insurnace_wf <- workflow()%>%
+  add_recipe(insurance_rec)%>%
+  add_model(insurance_spec)
+
+
+```
+
+3. Fit the model and resamples 
+
+- not very food fit
+
+
+```{r}
+control_pred <- control_resamples(save_pred = TRUE)
+
+insurance_res <- fit_resamples(insurnace_wf,
+                               resamples = insurance_folds,
+                               control = control_pred)
+
+insurance_res %>% collect_metrics()
+
+insurance_res  %>% 
+  unnest(.predictions)%>%
+  ggplot(aes(.pred,charges,color = id))+geom_point()
+
+insurance_res %>% collect_metrics()
+
+insurance_finafit <- last_fit(insurnace_wf,insurance_split)
+
+insurance_final_wf <- extract_workflow(insurance_finafit)
+
+insurance_final_wf %>% 
+  augment(insurance_test)%>%
+  ggplot(aes(.pred,charges))+geom_point()
+
+
+insurance_final_wf %>% 
+  augment(insurance_test)%>%
+  mutate(residuals = .pred-charges)%>%
+  ggplot(aes(residuals))+geom_histogram()
+
+insurance_final_wf %>% 
+  tidy()%>%
+  mutate(term = fct_reorder(term,estimate))%>%
+  ggplot(aes(estimate,term))+geom_col()
+
+
+```
+
