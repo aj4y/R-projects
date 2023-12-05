@@ -64,7 +64,7 @@ insurance_test <- testing(insurance_split)
 insurance_train %>% count(smoker)
 insurance_test %>% count(smoker)
 
-insurance_folds <- vfold_cv(insurance_train,strata = smoker)
+insurance_folds <- vfold_cv(insurance_train,strata = smoker, v = 100)
 
 ```
 

@@ -1,0 +1,172 @@
+---
+title: "tidymodels_usedcar"
+output: html_document
+date: "2023-12-05"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+library(tidyverse)
+library(tidymodels)
+library(janitor)
+
+
+car_data <- read.csv("used_car_data/car data.csv")%>%clean_names()
+car_dekho_data <- read.csv("used_car_data/CAR DETAILS FROM CAR DEKHO.csv")%>%clean_names()
+car_details_v3 <- read.csv("used_car_data/Car details v3.csv")%>%clean_names()
+car_details_v4 <- read.csv("used_car_data/car details v4.csv")%>%clean_names()
+
+
+```
+
+
+### Lets combine data sets 
+
+```{r}
+
+car_data %>% colnames()
+car_dekho_data %>% colnames()
+car_details_v3 %>% colnames()
+car_details_v4 %>% colnames()
+
+car_cleaned <- 
+rbind (
+car_data %>% 
+  rename(name = car_name,
+         fuel = fuel_type)%>%
+  select(-c(present_price),) %>%
+  mutate(owner = as.factor(owner ))%>%
+  mutate(owner= fct_recode(owner, 'First Owner' = '0',
+                           'Second Owner' = '1',
+                           'Fourth Owner' = '3')) %>%
+  mutate(selling_price = selling_price * 1e5), 
+  
+
+car_dekho_data %>% 
+  select(name,year,selling_price,km_driven,fuel,seller_type,transmission,owner)%>%
+  rename(kms_driven = km_driven),
+
+
+car_details_v3 %>% 
+  select(name,year,selling_price,km_driven,fuel,seller_type,transmission,owner)%>%
+  rename(kms_driven = km_driven),
+
+
+car_details_v4 %>%
+  select(model,price,year,kilometer,fuel_type,transmission,owner,seller_type,owner)%>%
+  rename(name = model,
+         selling_price = price,
+         kms_driven = kilometer,
+         fuel = fuel_type)%>%
+  mutate(owner = fct_recode(owner , 'First Owner' = 'First',
+                            'Second Owner' = 'Second',
+                            'Third Owner' = 'Third',
+                            'Fourth Owner' = 'Fourth',
+                            'Fourth & Above Owner' = '4 or More',
+                            'Unregistered Car' = 'UnRegistered Car'
+                            ))
+) %>% 
+  mutate(seller_type = fct_recode(seller_type , 'Dealer' = 'Trustmark Dealer'))%>%
+  mutate(fuel = fct_recode (fuel, 'CNG' = 'CNG + CNG'))%>%
+  mutate(selling_price = log(selling_price),
+         kms_driven = log(kms_driven+1))
+
+
+
+```
+
+### EDA 
+1. Convert selling price to a log scale 
+2. Convert kms_driven also to a log scale 
+3. Prices are going up yearly 
+
+
+```{r}
+
+car_cleaned %>%
+  ggplot(aes(selling_price))+geom_histogram()+
+  facet_wrap(~transmission)
+
+car_cleaned %>% 
+  ggplot(aes(kms_driven))+geom_histogram()
+
+
+avg_summary <- function (tbl,x){
+  tbl %>% 
+    group_by({{x}})%>%
+    summarise(avg_price = mean(exp(selling_price)))%>%
+    ggplot(aes({{x}},avg_price))+geom_col()+
+    scale_y_continuous(label = scales :: comma)
+}
+
+
+car_cleaned %>% 
+  avg_summary(year)
+
+car_cleaned %>% 
+  avg_summary(transmission)
+
+car_cleaned %>% 
+  avg_summary(owner)
+
+car_cleaned %>% 
+  avg_summary(fuel)
+
+car_cleaned %>% 
+  avg_summary(seller_type)
+
+
+```
+
+### Build model 
+1. Create data splits 
+
+
+```{r}
+
+# we will do dummy encoding on the entire data 
+
+car_dummies <- 
+recipe(selling_price ~., data = car_cleaned) %>% 
+  step_dummy(fuel,owner,seller_type, transmission)%>%
+  prep()%>%
+  bake(new_data=NULL)%>%
+  select(-name)
+
+
+car_split <- initial_split(car_dummies)
+car_train <- training(car_split)
+car_test <- testing (car_split)
+
+
+
+car_rec <- recipe(selling_price ~ . , data =car_train)
+
+car_spec <- linear_reg()%>%
+  set_engine('lm')
+
+car_wf <- workflow()%>%
+  add_recipe(car_rec)%>%
+  add_model(car_spec)
+
+car_res <- car_wf %>% fit(car_train)
+
+car_res %>% 
+  augment(car_test)%>%
+  ggplot(aes(.pred,selling_price))+geom_point()
+
+car_res %>% 
+  augment(car_test)%>%
+  metrics(selling_price,.pred)
+
+
+```
+
+
