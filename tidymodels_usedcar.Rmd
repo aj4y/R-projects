@@ -126,7 +126,7 @@ car_cleaned %>%
 ```
 
 ### Build model 
-1. Create data splits 
+1. Create data splits and train model
 
 
 ```{r}
@@ -147,7 +147,10 @@ car_test <- testing (car_split)
 
 
 
-car_rec <- recipe(selling_price ~ . , data =car_train)
+car_rec <- recipe(selling_price ~ . , data =car_train)%>%
+  step_mutate(age = 2023 - year)%>%
+  step_rm(year)%>%
+  step_zv(all_numeric_predictors())
 
 car_spec <- linear_reg()%>%
   set_engine('lm')
@@ -166,7 +169,66 @@ car_res %>%
   augment(car_test)%>%
   metrics(selling_price,.pred)
 
+car_res %>% 
+  tidy()%>%
+  filter(term != '(Intercept)')%>%
+  mutate(term = fct_reorder(term,estimate))%>%
+  ggplot(aes(estimate,term,fill= estimate>0))+geom_col()+
+  theme(legend.position = 'None')
 
 ```
+
+
+### lets try with random forest regressor 
+- Random forest is slightly better
+
+```{r}
+
+car_dummies <- 
+recipe(selling_price ~., data = car_cleaned) %>% 
+  step_dummy(fuel,owner,seller_type, transmission)%>%
+  prep()%>%
+  bake(new_data=NULL)%>%
+  select(-name)
+
+
+car_split <- initial_split(car_dummies)
+car_train <- training(car_split)
+car_test <- testing (car_split)
+
+
+
+car_rec_rf <- recipe(selling_price ~ . , data =car_train)%>%
+  step_mutate(age = 2023 - year)%>%
+  step_rm(year)%>%
+  step_zv(all_numeric_predictors())%>%
+  step_normalize(all_numeric_predictors())
+  
+
+car_spec_rf <- rand_forest(trees = 1000)%>%
+  set_engine('ranger',importance = 'permutation')%>%
+  set_mode("regression")
+
+car_wf_rf <- workflow()%>%
+  add_recipe(car_rec_rf)%>%
+  add_model(car_spec_rf)
+
+car_res_rf <- car_wf_rf %>% 
+  fit(car_train)
+
+car_res_rf %>% 
+  augment(car_test)%>%
+  ggplot(aes(.pred,selling_price))+geom_point()
+
+car_res_rf %>% 
+  augment(car_test)%>%
+  metrics(selling_price,.pred)
+
+library(vip)
+
+car_res_rf %>% 
+  vip(geom = 'point')
+```
+
 
 
