@@ -1,0 +1,179 @@
+---
+title: "tidymodels_winedata"
+output: html_document
+date: "2023-12-06"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidymodels)
+library(tidyverse)
+library(janitor)
+library(GGally)
+
+
+wine_red <- read.csv('wine+quality/winequality-red.csv')
+wine_white <- read.csv('wine+quality/winequality-white.csv')
+
+
+wine_red <-
+wine_red %>% 
+  separate(1,into = c('fixed_acidity','volatile.acidity',"citric.acid","residual.sugar","chlorides","free.sulfur.dioxide","total.sulfur.dioxide",
+  "density","pH","sulphates","alcohol","quality"),sep = ";")%>%
+  clean_names()%>%
+  mutate(color = 'red')
+
+wine_white <-
+wine_white %>% 
+  separate(1,into = c('fixed_acidity','volatile.acidity',"citric.acid","residual.sugar","chlorides","free.sulfur.dioxide","total.sulfur.dioxide",
+  "density","pH","sulphates","alcohol","quality"),sep = ";")%>%
+  clean_names()%>%
+  mutate(color = 'white')
+
+
+wine_data <- rbind(wine_red,wine_white)%>%
+  mutate_at(c(1:12),as.numeric)
+
+
+```
+
+### EDA 
+1. all variables seem to have high correlation with quality, lets try a linear regression model
+
+
+```{r}
+wine_data %>% 
+  ggplot(aes(quality))+geom_histogram()+facet_wrap(~color)
+
+
+wine_data %>% ggpairs(columns = c(1:12))
+
+
+
+```
+
+#### Build model
+- linear reg model does pretty bad, no sense of feature importance too
+
+```{r}
+wine_split <- initial_split(wine_data,strata = color)
+wine_train <- training(wine_split)
+wine_test <- testing (wine_split)
+
+
+wine_rec <- recipe(quality ~., data = wine_train)%>%
+  step_dummy(color)
+
+
+wine_spec <- linear_reg()%>%
+  set_engine('lm')
+
+
+wine_wf <- workflow()%>%
+  add_recipe(wine_rec)%>%
+  add_model(wine_spec)
+
+
+wine_res <- wine_wf %>% 
+  fit(wine_train)
+
+wine_res %>%
+  augment(wine_test)%>%
+  metrics(quality,.pred)
+
+wine_res %>%
+  augment(wine_test)%>%
+  ggplot(aes(.pred,quality))+geom_point()
+
+wine_res %>%
+  tidy()%>%
+  mutate(term = fct_reorder(term,estimate))%>%
+  ggplot(aes(estimate,term, fill = estimate >0))+geom_col()+
+  theme(legend.position = 'None')
+
+```
+
+- Lets trt a random forest model classification
+
+
+```{r}
+
+wine_data <- wine_data %>% 
+  mutate(quality = as.factor(quality))
+
+wine_split <- initial_split(wine_data,strata = color)
+wine_train <- training(wine_split)
+wine_test <- testing (wine_split)
+
+wine_folds <- vfold_cv(wine_train)
+
+
+wine_rec_rf <- recipe(quality ~ ., data = wine_train)%>%
+  step_dummy(color)%>%
+  step_zv(all_numeric_predictors())%>%
+  step_normalize(all_numeric_predictors())
+
+
+wine_spec_rf <- rand_forest(trees = 1000)%>%
+  set_engine('ranger',importance = 'permutation')%>%
+  set_mode('classification')
+
+wine_wf_rf <- workflow()%>%
+  add_recipe(wine_rec_rf)%>%
+  add_model(wine_spec_rf)
+
+wine_res_rf <- wine_wf_rf %>% 
+  fit(wine_train)
+
+wine_res_rf %>% 
+  augment(wine_test)%>%
+  metrics(quality,.pred_class)
+
+library(vip)
+
+wine_res_rf %>% 
+  vip(geom = 'point')
+
+
+#### Lets tune the RF model
+
+wine_spec_rf_tune <- rand_forest(trees = 1000,
+                                 mtry = tune(),
+                                 min_n = tune())%>%
+  set_engine('ranger',importance = 'permutation')%>%
+  set_mode('classification')
+
+
+wine_wf_rf_tune <- workflow()%>%
+  add_recipe(wine_rec_rf)%>%
+  add_model(wine_spec_rf_tune)
+
+
+wine_tune_res <- tune_grid(
+  wine_wf_rf_tune,
+  resamples = wine_folds,
+  grid = 20
+)
+
+wine_tune_res %>% 
+  collect_metrics()%>%
+  filter(.metric == 'roc_auc')%>%
+  select(mean,min_n,mtry)%>%
+  pivot_longer(min_n:mtry,
+               values_to = "value",
+               names_to = "parameter")%>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "AUC")
+
+```
+
+
+
