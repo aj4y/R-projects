@@ -91,7 +91,7 @@ lin_results %>%
 
 
 lin_final_fit <- last_fit(lin_wf,mpg_split)
-
+# final workflow
 lin_final_wf <- extract_workflow(lin_final_fit)
 
 lin_final_wf %>%
