@@ -95,7 +95,7 @@ lin_final_fit <- last_fit(lin_wf,mpg_split)
 lin_final_wf <- extract_workflow(lin_final_fit)
 
 lin_final_wf %>%
-  augment(mpg_test)%>% 
+  augment(mpg_test)%>%
   ggplot(aes(.pred,hwy))+geom_point()
 
 lin_final_wf%>%
