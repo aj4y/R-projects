@@ -1,0 +1,112 @@
+---
+title: "tidymodels_auto_mpg"
+output: html_document
+date: "2023-12-17"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+
+library(tidyverse)
+library(tidymodels)
+library(janitor)
+library(lubridate)
+library(GGally)
+
+
+data(mpg)
+
+mpg %>% 
+  glimpse()
+
+
+mpg %>% 
+  skimr::skim()
+
+mpg %>% 
+  ggplot(aes(hwy))+geom_histogram()
+
+mpg <- mpg %>% 
+  mutate(age = 2023 - year )%>%
+  select(-year)
+
+mpg <- mpg%>% 
+  count(class, sort = T )
+
+
+ggpairs(data = mpg %>% select(-model))
+
+
+```
+
+- no missing values 
+- 6 categorical 
+- 4 numeric 
+- data looks clean, lets try a linear model with only numeric columns 
+
+
+
+```{r}
+
+mpg_linear_reg <- 
+mpg %>% 
+  select(where(is.numeric)) 
+
+mpg_split <- initial_split(mpg_linear_reg)
+mpg_train <- training(mpg_split)
+mpg_test <- testing (mpg_split)
+
+mpg_folds <- vfold_cv(mpg_train)
+
+
+lin_rec <- recipe(hwy ~ ., data = mpg_train )
+
+lin_spec <- linear_reg()%>% 
+  set_engine('lm')
+
+lin_wf <- workflow()%>% 
+  add_recipe(lin_rec)%>% 
+  add_model(lin_spec)
+
+control_preds <- control_resamples(save_pred = TRUE)
+
+lin_results <- fit_resamples(lin_wf,
+                             resamples = mpg_folds,
+                             control =control_preds)
+
+lin_results %>% 
+  unnest(.predictions)%>% 
+  ggplot(aes(.pred,hwy,color = id)) + geom_point()
+
+
+lin_final_fit <- last_fit(lin_wf,mpg_split)
+
+lin_final_wf <- extract_workflow(lin_final_fit)
+
+lin_final_wf %>%
+  augment(mpg_test)%>% 
+  ggplot(aes(.pred,hwy))+geom_point()
+
+lin_final_wf%>%
+  tidy() %>% 
+  mutate(term = fct_reorder(term,estimate))%>%
+  ggplot(aes(estimate,term, fill = estimate > 0)) +geom_col()+
+  theme(legend.position = 'None')
+
+```
+
+
+
+
+
