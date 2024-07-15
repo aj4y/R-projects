@@ -1,0 +1,98 @@
+---
+title: "drob_functions_tidytuesday"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load the libraries and the tidytuesday data set 
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+library(janitor)
+library(pak)
+
+pak::pak("r4ds/ttmeta")
+
+
+tuesdata <- tidytuesdayR::tt_load('2024-07-09')
+
+drob_funs <- tuesdata$drob_funs
+
+drob_funs
+```
+
+# Basic EDA on the data 
+1. 112 data sets or analysis shared by drob so far 
+2. drob is clearly a fan ggplot and data visualization 
+3. drob also likes to create custom functions to handle repeatative code 
+4. Not much use of shiny apps across these data sets 
+
+```{r}
+drob_funs %>% 
+  glimpse()
+
+
+# Number of data sets explored by drob - 112
+
+drob_funs %>% 
+  count(contents,sort = TRUE) %>% 
+  view()
+
+# most used functions
+
+drob_funs %>% 
+  count(funs,sort = TRUE) %>% 
+  mutate(funs = fct_reorder(funs,n))%>%
+  top_n(15)%>%
+  ggplot(aes(n,funs))+geom_col()+
+  labs(title = 'Most used functions',
+       x = 'Count of appearacne',
+       y = 'Function name')
+
+
+# most used functions across unique datasets 
+
+drob_funs %>% 
+  group_by(funs)%>%
+  summarise( n = n_distinct(contents))%>%
+  mutate(funs = fct_reorder(funs,n))%>%
+  top_n(15)%>%
+  ggplot(aes(n,funs))+geom_col()+
+  labs(title = 'Most used functions across unique datasets',
+       x = 'Count of appearacne',
+       y = 'Function name')
+
+# most used packages across unique datasets 
+
+drob_funs %>% 
+  group_by(pkgs)%>%
+  summarise(n = n_distinct(contents))%>%
+  mutate(pkgs = fct_reorder(pkgs,n))%>%
+  top_n(15)%>% 
+  ggplot(aes(n,pkgs))+geom_col()+
+  labs(title = 'Most used Packages across unique datasets',
+       x = 'Count of appearacne',
+       y = 'Function name')
+
+
+# custom functions defined by drob - 85
+
+drob_funs %>%
+  filter(pkgs == '(unknown)')%>%
+  group_by(funs)%>% 
+  summarise(n = n_distinct(contents))%>%
+  arrange(desc(n))
+
+# how many shiny apps - 4
+
+drob_funs %>% 
+  filter(str_detect(funs,'shiny'))
+
+```
+
+
+
+
