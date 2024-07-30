@@ -6,8 +6,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-Exploring "Summer movies" data set from this weeks (2024-07-30) TidyTuesday datas et. 
-The data this week comes from the Internet Movie Database.
+Exploring "Summer movies" data set from this weeks (2024-07-30) TidyTuesday datas et. The data this week comes from the Internet Movie Database.
 
 Lets load the necessary packages, and download the data set.
 
@@ -24,13 +23,7 @@ summer_movies <- tidytues$summer_movies
 
 ```
 
-Lets explore the data 
-1. Summer moview genres 
-  - 2 columns, 1585 rows. 
-  - 905 unique identifier of movies and 25 gneres of movies (some NAs exist). Many to many relationship
-  - 1 movie can have multiple genres, at max 3
-  - Drama, Comedy and Romance are the top 3 Genres 
-  - And they are most commonly together as well 
+Lets explore the data 1. Summer moview genres - 2 columns, 1585 rows. - 905 unique identifier of movies and 25 gneres of movies (some NAs exist). Many to many relationship - The data is from 1925 - 1 movie can have multiple genres, at max 3 - Drama, Comedy and Romance are the top 3 Genres - And they are most commonly together as well
 
 ```{r}
 summer_movie_genres %>% 
@@ -51,7 +44,7 @@ summer_movie_genres %>%
   arrange(-n)%>%
   mutate(genres = fct_reorder(genres,n))%>%
   ggplot(aes(n,genres))+geom_col()+
-  labs(title = "Count of moview Genre wise",
+  labs(title = "Genre wise movies releaesd over these years",
        y = "Genres",
        x = NULL)+
   theme_minimal()
@@ -71,7 +64,7 @@ summer_movie_genres %>%
   mutate(genre_combined = fct_reorder(genre_combined,n_tconst))%>%
   slice_head(n=15)%>%
   ggplot(aes(n_tconst,genre_combined))+geom_col()+
-  labs(title = "Combination of Genres appearing the most",
+  labs(title = "Combination of most common genres of movies",
        y = "Genres",
        x = "Number of movies")+
   theme_minimal()
@@ -79,12 +72,13 @@ summer_movie_genres %>%
 
 ```
 
-2. Summer movies
-- More and more tiltes are released every year 
-- Movie run-times are going down
-- Variation in ratings have increased over the decades, probably because of number of ratings, can look into that data 
-- Ratings and runtime dont show any relation though 
-- Maximum movies belong to Drama / Romance / comedy genre, but Talk-Show,Documentary and Music have higher average ratings 
+2.  Summer movies
+
+-   More and more tiltes are released every year
+-   Movie run-times are going down
+-   Variation in ratings have increased over the decades, probably because of number of ratings, can look into that data
+-   Ratings and runtime dont show any relation though
+-   Maximum movies belong to Drama / Romance / comedy genre, but Talk-Show,Documentary and Music have higher average ratings
 
 ```{r}
 summer_movies%>%
@@ -165,6 +159,3 @@ summer_movie_genres %>%
   
 
 ```
-
-
-
