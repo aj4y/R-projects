@@ -1,0 +1,170 @@
+---
+title: "tidytuesday_summermovies"
+format: html
+editor: source
+editor_options: 
+  chunk_output_type: console
+---
+
+Exploring "Summer movies" data set from this weeks (2024-07-30) TidyTuesday datas et. 
+The data this week comes from the Internet Movie Database.
+
+Lets load the necessary packages, and download the data set.
+
+```{r}
+
+library(tidytuesdayR)
+library(tidyverse)
+library(janitor)
+
+tidytues <- tidytuesdayR::tt_load('2024-07-30')
+
+summer_movie_genres <- tidytues$summer_movie_genres
+summer_movies <- tidytues$summer_movies
+
+```
+
+Lets explore the data 
+1. Summer moview genres 
+  - 2 columns, 1585 rows. 
+  - 905 unique identifier of movies and 25 gneres of movies (some NAs exist). Many to many relationship
+  - 1 movie can have multiple genres, at max 3
+  - Drama, Comedy and Romance are the top 3 Genres 
+  - And they are most commonly together as well 
+
+```{r}
+summer_movie_genres %>% 
+  glimpse()
+
+summer_movie_genres%>%
+  count(tconst,genres,sort = TRUE)
+
+summer_movie_genres%>%
+  group_by(tconst)%>%
+  summarise(n = n_distinct(genres))%>%
+  arrange(-n)
+
+summer_movie_genres %>% 
+  filter(!is.na(genres))%>%
+  group_by(genres)%>%
+  summarise(n = n_distinct(tconst))%>%
+  arrange(-n)%>%
+  mutate(genres = fct_reorder(genres,n))%>%
+  ggplot(aes(n,genres))+geom_col()+
+  labs(title = "Count of moview Genre wise",
+       y = "Genres",
+       x = NULL)+
+  theme_minimal()
+
+
+summer_movie_genres %>% 
+  group_by(tconst)%>%
+  mutate(row = row_number(), n =n())%>%
+  ungroup()%>%
+  filter(n>2)%>%
+  pivot_wider(names_from = row,values_from = genres)%>%
+  unite("genre_combined",3:5,remove = FALSE)%>%
+  group_by(genre_combined)%>%
+  summarise(n_tconst = n_distinct(tconst))%>%
+  ungroup()%>%
+  arrange(desc(n_tconst))%>%
+  mutate(genre_combined = fct_reorder(genre_combined,n_tconst))%>%
+  slice_head(n=15)%>%
+  ggplot(aes(n_tconst,genre_combined))+geom_col()+
+  labs(title = "Combination of Genres appearing the most",
+       y = "Genres",
+       x = "Number of movies")+
+  theme_minimal()
+
+
+```
+
+2. Summer movies
+- More and more tiltes are released every year 
+- Movie run-times are going down
+- Variation in ratings have increased over the decades, probably because of number of ratings, can look into that data 
+- Ratings and runtime dont show any relation though 
+- Maximum movies belong to Drama / Romance / comedy genre, but Talk-Show,Documentary and Music have higher average ratings 
+
+```{r}
+summer_movies%>%
+  glimpse()
+
+summer_movies %>% 
+  group_by(year)%>%
+  summarise(title_count = n_distinct(tconst))%>%
+  ggplot(aes(year,title_count))+geom_point()+
+  geom_smooth()+
+  labs(title = "Number of titles released every year since 1925",
+       subtitle = "Clearly trending up",
+       x = NULL, 
+       y = NULL) +
+  theme_minimal()
+
+
+summer_movies %>% 
+  group_by(year)%>%
+  summarise(avg_runtime = mean(runtime_minutes))%>% 
+  ggplot(aes(year,avg_runtime))+geom_point()+
+  geom_smooth()+
+  labs(title = "Average runtime in min per year",
+       subtitle = "Clearly trending down",
+       x = NULL, 
+       y = NULL) +
+  theme_minimal()
+
+
+summer_movies %>% 
+  group_by(year)%>%
+  summarise(avg_rating = mean(average_rating))%>% 
+  ggplot(aes(year,avg_rating))+geom_point()+
+  geom_smooth()+
+  labs(title = "Average ratings on IMDB have been flat",
+       y = "Average IMDB rating", 
+       x = NULL) +
+  theme_minimal()
+
+summer_movies %>% 
+  filter(!is.na(year))%>%
+  mutate(decade = year - year %% 10)%>%
+  mutate(decade = as.factor(decade))%>%
+  ggplot(aes(decade,average_rating,fill=decade))+geom_boxplot()+
+  labs(title = "Variation in the ratings have gone up",
+       y = "Average IMDB rating", 
+       x = NULL, fill = NULL) +
+  theme_minimal()+
+  theme(legend.position = "None")
+
+
+summer_movies %>% 
+  filter(!is.na(year))%>%
+  mutate(decade = year - year %% 10)%>%
+  mutate(decade = as.factor(decade))%>%
+  ggplot(aes(runtime_minutes,average_rating,color = decade))+geom_point()+
+  facet_wrap(~decade)+
+  geom_smooth()+
+  labs(title = "Ratings vs Runtime min by decade",
+       x = "Runtime in Min",
+       y = "Average ratings")+
+  theme_minimal()+
+  theme(legend.position = "None")
+
+
+summer_movie_genres %>%
+  filter(!is.na(genres))%>%
+  left_join(.,summer_movies %>% 
+              select(tconst,average_rating),
+            by = c('tconst'))%>%
+  group_by(genres)%>%
+  summarise (avg_rating = mean(average_rating))%>%
+  mutate(genres = fct_reorder(genres,avg_rating))%>%
+  ggplot(aes(avg_rating,genres))+geom_col()+
+  labs(title = "Average ratings by genres",
+       x = NULL, y = NULL)+
+  theme_minimal()
+  
+
+```
+
+
+
