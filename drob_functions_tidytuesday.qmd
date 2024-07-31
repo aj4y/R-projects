@@ -18,10 +18,17 @@ pak::pak("r4ds/ttmeta")
 
 
 tuesdata <- tidytuesdayR::tt_load('2024-07-09')
+tuesdata_ttmeta <- tidytuesdayR::tt_load('2024-07-02')
 
 drob_funs <- tuesdata$drob_funs
 
 drob_funs
+
+tt_datasets <- tuesdata_ttmeta$tt_datasets
+
+tt_variables <- tuesdata_ttmeta$tt_variables
+
+
 ```
 
 # Basic EDA on the data 
@@ -95,4 +102,9 @@ drob_funs %>%
 
 
 
+
+```{r}
+tuesdata_ttmeta$
+
+```
 

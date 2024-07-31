@@ -1,0 +1,57 @@
+---
+title: "tt_17thJul"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+
+
+tuesdata <- tidytuesdayR::tt_load('2024-07-16')
+tuesdata
+
+
+
+ewf_appearances <- tuesdata$ewf_appearances
+ewf_matches <- tuesdata$ewf_matches
+ewf_standings <- tuesdata$ewf_standings
+
+
+```
+
+# Lets explore Appearances data set
+1. Number of matches played every year 
+2. Trend of teams participating and number of divisions across years 
+3. Trend of winning team goals / margin , home / away etc
+4. Team standing table, design a table or shiny app 
+
+
+
+```{r}
+
+ewf_appearances%>%
+  glimpse()
+
+ewf_appearances %>% 
+  count(year(date))
+  
+
+
+```
+
+
+
+```{r}
+ewf_matches%>%
+  glimpse()
+
+ewf_standings%>%
+  glimpse()
+
+```
+
